@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import type { ExtensionAPI, ProviderConfig } from "@oh-my-pi/pi-coding-agent";
 import antigravityProExtension from "../src/index";
@@ -78,6 +80,21 @@ describe("extension registration", () => {
 
 		expect(() => getApiKey?.({ access: "access-token", refresh: "refresh-token", expires: 1_800_000_000_000 })).toThrow(
 			/projectId/,
+		);
+	});
+});
+
+describe("published package contract", () => {
+	test("declares every runtime OMP package as a production dependency", async () => {
+		const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as {
+			dependencies?: Record<string, string>;
+		};
+
+		expect(packageJson.dependencies).toEqual(
+			expect.objectContaining({
+				"@oh-my-pi/pi-ai": expect.any(String),
+				"@oh-my-pi/pi-catalog": expect.any(String),
+			}),
 		);
 	});
 });
