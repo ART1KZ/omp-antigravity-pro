@@ -74,14 +74,14 @@ describe("extension registration", () => {
 		});
 	});
 
-	test("refuses credentials without a projectId instead of sending a broken envelope", () => {
+	test("defaults to aicode-consumers fallback when projectId is missing", () => {
 		const { config } = register();
 		const getApiKey = config.oauth?.getApiKey;
 		expect(getApiKey).toBeDefined();
 
-		expect(() => getApiKey?.({ access: "access-token", refresh: "refresh-token", expires: 1_800_000_000_000 })).toThrow(
-			/projectId/,
-		);
+		const apiKey = getApiKey?.({ access: "access-token", refresh: "refresh-token", expires: 1_800_000_000_000 });
+		expect(apiKey).toBeDefined();
+		expect(JSON.parse(apiKey ?? "{}").projectId).toBe("aicode-consumers");
 	});
 });
 
