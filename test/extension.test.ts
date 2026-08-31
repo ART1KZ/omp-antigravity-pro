@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 
+import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import type { ExtensionAPI, ProviderConfig } from "@oh-my-pi/pi-coding-agent";
 import antigravityProExtension from "../src/index";
@@ -34,6 +35,10 @@ describe("extension registration", () => {
 		expect(config.streamSimple).toBe(streamAntigravityPro);
 		expect(config.fetchDynamicModels).toBeDefined();
 		expect(config.authHeader).toBeUndefined();
+
+		const def = getProviderDefinition(PROVIDER_ID);
+		expect(def?.login).toBe(config.oauth?.login);
+		expect(def?.refreshToken).toBe(config.oauth?.refreshToken);
 	});
 
 	test("registers the full bundled catalog on the custom transport", () => {

@@ -1,3 +1,4 @@
+import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 import {
 	CUSTOM_API_ID,
@@ -19,6 +20,14 @@ import { streamAntigravityPro } from "./stream";
  */
 export default function antigravityProExtension(pi: ExtensionAPI): void {
 	pi.setLabel("Antigravity Pro (daily endpoint, budget thinking)");
+
+	// Override built-in provider definition so interactive /login and AuthStorage.login
+	// always use our proxy-aware login and ineligible bypass instead of the stock flow.
+	const builtInDef = getProviderDefinition(PROVIDER_ID);
+	if (builtInDef) {
+		(builtInDef as { login?: typeof login; refreshToken?: typeof refreshToken }).login = login;
+		(builtInDef as { login?: typeof login; refreshToken?: typeof refreshToken }).refreshToken = refreshToken;
+	}
 
 	pi.registerProvider(PROVIDER_ID, {
 		baseUrl: getAntigravityBaseUrl(),
