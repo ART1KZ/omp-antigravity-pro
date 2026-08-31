@@ -86,15 +86,18 @@ describe("extension registration", () => {
 });
 
 describe("published package contract", () => {
-	test("declares every runtime OMP package as a production dependency", async () => {
+	test("declares every runtime OMP package as a peerDependency without bloat in dependencies", async () => {
 		const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as {
 			dependencies?: Record<string, string>;
+			peerDependencies?: Record<string, string>;
 		};
 
-		expect(packageJson.dependencies).toEqual(
+		expect(packageJson.dependencies ?? {}).toEqual({});
+		expect(packageJson.peerDependencies).toEqual(
 			expect.objectContaining({
 				"@oh-my-pi/pi-ai": expect.any(String),
 				"@oh-my-pi/pi-catalog": expect.any(String),
+				"@oh-my-pi/pi-coding-agent": expect.any(String),
 			}),
 		);
 	});
