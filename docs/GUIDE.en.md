@@ -247,6 +247,18 @@ Two extensions overriding `google-antigravity` can be load-order dependent. Disa
 
 Confirm that you selected `google-antigravity/gemini-3.6-flash` and a supported effort. Run with JSON output to inspect the terminal error. The extension already pins production routing and numeric Gemini 3.6 budgets; persistent empty responses can still originate from upstream availability, account eligibility, or model rollout state.
 
+### HTTP 400 error (User location is not supported)
+
+If Google returns `Cloud Code Assist API error (400): User location is not supported for the API use`, it is caused by Google's regional IP filter.
+
+To resolve this, route requests through a reverse proxy (such as a Cloudflare Worker proxying `daily-cloudcode-pa.googleapis.com`):
+1. Deploy a Cloudflare Worker forwarding requests to `daily-cloudcode-pa.googleapis.com`.
+2. Configure the worker URL in `ANTIGRAVITY_BASE_URL` (in system environment or `~/.omp/agent/.env`):
+   ```bash
+   ANTIGRAVITY_BASE_URL=https://your-worker.workers.dev
+   ```
+3. The plugin will automatically route all requests through your proxy endpoint.
+
 ### Quota errors
 
 Run `omp usage`. OMP rotates only among configured, eligible sibling credentials. If every account is limited, wait for reset or add another authorized account.

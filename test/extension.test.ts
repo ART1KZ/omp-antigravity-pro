@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import type { ExtensionAPI, ProviderConfig } from "@oh-my-pi/pi-coding-agent";
 import antigravityProExtension from "../src/index";
-import { ANTIGRAVITY_DAILY_ENDPOINT, CUSTOM_API_ID, PROVIDER_ID } from "../src/models";
+import { CUSTOM_API_ID, getAntigravityBaseUrl, PROVIDER_ID } from "../src/models";
 import { streamAntigravityPro } from "../src/stream";
 
 function register(): { name: string; config: ProviderConfig } {
@@ -30,8 +30,9 @@ describe("extension registration", () => {
 
 		expect(name).toBe(PROVIDER_ID);
 		expect(config.api).toBe(CUSTOM_API_ID);
-		expect(config.baseUrl).toBe(ANTIGRAVITY_DAILY_ENDPOINT);
+		expect(config.baseUrl).toBe(getAntigravityBaseUrl());
 		expect(config.streamSimple).toBe(streamAntigravityPro);
+		expect(config.fetchDynamicModels).toBeDefined();
 		expect(config.authHeader).toBeUndefined();
 	});
 

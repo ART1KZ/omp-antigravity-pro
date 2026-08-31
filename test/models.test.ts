@@ -2,9 +2,20 @@ import { describe, expect, test } from "bun:test";
 import type { Model } from "@oh-my-pi/pi-ai";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
-import { CUSTOM_API_ID, projectAntigravityModel, projectBundledAntigravityModels } from "../src/models";
+import {
+	CUSTOM_API_ID,
+	fetchDynamicAntigravityModels,
+	getAntigravityBaseUrl,
+	projectAntigravityModel,
+	projectBundledAntigravityModels,
+} from "../src/models";
 
 describe("Antigravity model projection", () => {
+	test("resolves base endpoint from environment or default", () => {
+		expect(typeof getAntigravityBaseUrl()).toBe("string");
+		expect(getAntigravityBaseUrl().length).toBeGreaterThan(0);
+	});
+
 	test("keeps the complete bundled catalog while selecting the custom transport", () => {
 		const source = getBundledModels("google-antigravity");
 		const projected = projectBundledAntigravityModels();
@@ -60,16 +71,57 @@ describe("Antigravity model projection", () => {
 		});
 	});
 
-	test("adds Gemini 3.6 Flash when the installed catalog predates it", () => {
+	test("adds Gemini 3.6 Flash and Gemini 3.7 Flash when the installed catalog predates them", () => {
 		const source = getBundledModels("google-antigravity");
 		const projected = projectBundledAntigravityModels();
-		const expectedLength = source.some((model) => model.id === "gemini-3.6-flash") ? source.length : source.length + 1;
+		const expectedMinLength = source.length;
 		const gemini36 = projected.find((model) => model.id === "gemini-3.6-flash");
+		const gemini37 = projected.find((model) => model.id === "gemini-3.7-flash");
 
-		expect(projected).toHaveLength(expectedLength);
+		expect(projected.length).toBeGreaterThanOrEqual(expectedMinLength);
 		expect(gemini36).toBeDefined();
 		expect(gemini36?.contextWindow).toBe(1_048_576);
 		expect(gemini36?.maxTokens).toBe(65_536);
 		expect(gemini36?.thinking?.requiresEffort).toBe(true);
+
+		expect(gemini37).toBeDefined();
+		expect(gemini37?.name).toBe("Gemini 3.7 Flash");
+		expect(gemini37?.contextWindow).toBe(1_048_576);
+		expect(gemini37?.maxTokens).toBe(65_536);
+		expect(gemini37?.thinking?.requiresEffort).toBe(true);
+	});
+
+	test("fetchDynamicAntigravityModels falls back to bundled when no token", async () => {
+		const models = await fetchDynamicAntigravityModels(undefined);
+		expect(models.length).toBeGreaterThan(0);
+		expect(models.some((m) => m.id === "gemini-3.6-flash")).toBe(true);
+		expect(models.some((m) => m.id === "gemini-3.7-flash")).toBe(true);
+	});
+
+	test("fetchDynamicAntigravityModels parses live response and projects custom api", async () => {
+		const mockFetcher = (async () => {
+			return new Response(
+				JSON.stringify({
+					models: {
+						"gemini-3.9-pro": {
+							displayName: "Gemini 3.9 Pro",
+							supportsImages: true,
+							supportsThinking: true,
+							maxTokens: 2000000,
+							maxOutputTokens: 65536,
+						},
+					},
+				}),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		}) as unknown as typeof fetch;
+
+		const models = await fetchDynamicAntigravityModels("mock-token", mockFetcher);
+		const dynamicModel = models.find((m) => m.id === "gemini-3.9-pro");
+		expect(dynamicModel).toBeDefined();
+		expect(dynamicModel?.name).toBe("Gemini 3.9 Pro");
+		expect(dynamicModel?.api).toBe(CUSTOM_API_ID);
+		expect(dynamicModel?.contextWindow).toBe(2000000);
+		expect(dynamicModel?.input).toContain("image");
 	});
 });

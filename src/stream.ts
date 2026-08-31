@@ -13,7 +13,7 @@ import {
 	requireSupportedEffort,
 	resolveWireModelId,
 } from "@oh-my-pi/pi-catalog/model-thinking";
-import { ANTIGRAVITY_DAILY_ENDPOINT } from "./models";
+import { ANTIGRAVITY_DAILY_ENDPOINT, getAntigravityBaseUrl } from "./models";
 
 const MIN_OUTPUT_TOKENS = 1024;
 const OUTPUT_CAP_WHEN_UNKNOWN = 64_000;
@@ -49,22 +49,28 @@ function maxTokensWithThinkingBudget(
 }
 
 function toWireModel(model: Model<Api>): Model<"google-gemini-cli"> {
+	const baseUrl = model.baseUrl?.trim() || getAntigravityBaseUrl();
 	return {
 		...(model as Model<"google-gemini-cli">),
 		api: "google-gemini-cli",
 		provider: "google-antigravity",
-		baseUrl: ANTIGRAVITY_DAILY_ENDPOINT,
+		baseUrl,
 	};
 }
 
 export function createWireRequest(model: Model<Api>, options?: SimpleStreamOptions): WireRequest {
 	const wireModel = toWireModel(model);
 	const { reasoning, disableReasoning, thinkingBudgets, toolChoice, apiKey, ...forwardedOptions } = options ?? {};
+	const isCustomEndpoint =
+		wireModel.baseUrl !== ANTIGRAVITY_DAILY_ENDPOINT &&
+		wireModel.baseUrl !== "https://daily-cloudcode-pa.sandbox.googleapis.com";
+	const antigravityEndpointMode =
+		(forwardedOptions as GoogleGeminiCliOptions).antigravityEndpointMode ?? (isCustomEndpoint ? "auto" : "production");
 	const baseOptions: GoogleGeminiCliOptions = {
 		...forwardedOptions,
 		apiKey: typeof apiKey === "string" ? apiKey : undefined,
 		toolChoice: mapToolChoice(toolChoice),
-		antigravityEndpointMode: "production",
+		antigravityEndpointMode,
 	};
 
 	if (reasoning !== undefined && !disableReasoning && wireModel.reasoning) {

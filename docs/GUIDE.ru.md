@@ -247,6 +247,18 @@ OAuth-запись неполная. Запустите OMP, выполните 
 
 Убедитесь, что выбраны `google-antigravity/gemini-3.6-flash` и поддерживаемый effort. Запустите OMP в JSON mode для просмотра terminal error. Расширение уже фиксирует production routing и числовые budgets 3.6, но постоянные пустые ответы всё равно могут быть вызваны доступностью upstream, eligibility аккаунта или постепенным rollout модели.
 
+### Ошибка 400 (User location is not supported)
+
+Если Google возвращает `Cloud Code Assist API error (400): User location is not supported for the API use`, это вызвано региональной блокировкой IP-адреса со стороны Google.
+
+Для решения проблемы настройте обратный прокси (например, Cloudflare Worker, проксирующий `daily-cloudcode-pa.googleapis.com`):
+1. Разверните Cloudflare Worker со скриптом перенаправления запросов на `daily-cloudcode-pa.googleapis.com`.
+2. Укажите URL воркера в переменной окружения `ANTIGRAVITY_BASE_URL` (в системных переменных или в файле `~/.omp/agent/.env`):
+   ```bash
+   ANTIGRAVITY_BASE_URL=https://your-worker.workers.dev
+   ```
+3. Плагин автоматически перенаправит все запросы через указанный Worker/прокси, обходя географические ограничения.
+
 ### Ошибка квоты
 
 Выполните `omp usage`. OMP может переключаться только между настроенными и доступными sibling credentials. Если лимит исчерпан на всех аккаунтах, дождитесь reset или добавьте ещё один разрешённый аккаунт.

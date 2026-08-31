@@ -77,12 +77,21 @@ describe("Antigravity wire request", () => {
 		expect(payload.model).toBe("gpt-oss-120b-medium");
 	});
 
-	test("forces the production endpoint mode", () => {
-		const { wireOptions } = createWireRequest(model("gpt-oss-120b"), {
-			antigravityEndpointMode: "sandbox",
-		});
+	test("uses production endpoint mode by default", () => {
+		const { wireOptions } = createWireRequest(model("gpt-oss-120b"));
 
 		expect((wireOptions as GoogleGeminiCliOptions).antigravityEndpointMode).toBe("production");
+	});
+
+	test("respects custom proxy baseUrl and routes via auto endpoint mode", () => {
+		const customModel = {
+			...model("gpt-oss-120b"),
+			baseUrl: "https://my-cf-worker.workers.dev",
+		};
+		const { wireModel, wireOptions } = createWireRequest(customModel);
+
+		expect(wireModel.baseUrl).toBe("https://my-cf-worker.workers.dev");
+		expect((wireOptions as GoogleGeminiCliOptions).antigravityEndpointMode).toBe("auto");
 	});
 
 	test("delegates SSE parsing, signatures and usage to the stock transport", async () => {
