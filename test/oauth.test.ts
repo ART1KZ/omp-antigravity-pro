@@ -3,16 +3,21 @@ import { DEFAULT_FALLBACK_PROJECT_ID, discoverProject, refreshAntigravityToken }
 
 describe("OAuth discovery and fallback", () => {
 	test("discoverProject uses existing project from loadCodeAssist", async () => {
-		const mockFetcher = (async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () => {
 			return new Response(JSON.stringify({ cloudaicompanionProject: "custom-proj-123" }), { status: 200 });
 		}) as unknown as typeof fetch;
-
-		const projectId = await discoverProject("test-token", undefined, mockFetcher);
-		expect(projectId).toBe("custom-proj-123");
+		try {
+			const projectId = await discoverProject("test-token");
+			expect(projectId).toBe("custom-proj-123");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	test("discoverProject falls back to aicode-consumers on ineligible location or failed load", async () => {
-		const mockFetcher = (async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () => {
 			return new Response(
 				JSON.stringify({
 					ineligibleTiers: [{ reasonCode: "UNSUPPORTED_LOCATION" }],
@@ -20,9 +25,12 @@ describe("OAuth discovery and fallback", () => {
 				{ status: 200 },
 			);
 		}) as unknown as typeof fetch;
-
-		const projectId = await discoverProject("test-token", undefined, mockFetcher);
-		expect(projectId).toBe(DEFAULT_FALLBACK_PROJECT_ID);
+		try {
+			const projectId = await discoverProject("test-token");
+			expect(projectId).toBe(DEFAULT_FALLBACK_PROJECT_ID);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	test("refreshAntigravityToken refreshes access token and retains projectId", async () => {

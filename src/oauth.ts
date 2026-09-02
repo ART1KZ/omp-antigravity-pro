@@ -1,7 +1,7 @@
 import { runGoogleOAuthLogin } from "@oh-my-pi/pi-ai/oauth/google-oauth-shared";
 import type { OAuthController, OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
 import { getAntigravityUserAgent } from "@oh-my-pi/pi-catalog/wire/gemini-headers";
-import { getAntigravityBaseUrl } from "./models";
+import { getAntigravityBaseUrl, PROVIDER_ID } from "./models";
 
 const P1 = ["1071006060591", "tmhssin2h21lcre235vtolojh4g403ep", "apps.googleusercontent.com"].join("-");
 export const CLIENT_ID = P1.replace("-apps.", ".apps.");
@@ -68,7 +68,7 @@ function getDefaultTierId(allowedTiers?: Array<{ id?: string; isDefault?: boolea
 export async function discoverProject(
 	accessToken: string,
 	onProgress?: (message: string) => void,
-	fetcher: typeof fetch = fetch,
+	signal?: AbortSignal,
 ): Promise<string> {
 	const endpoint = getAntigravityBaseUrl();
 	const headers = {
@@ -79,9 +79,10 @@ export async function discoverProject(
 
 	onProgress?.("Checking for existing Antigravity project via proxy...");
 	try {
-		const loadResponse = await fetcher(`${endpoint}/v1internal:loadCodeAssist`, {
+		const loadResponse = await fetch(`${endpoint}/v1internal:loadCodeAssist`, {
 			method: "POST",
 			headers,
+			signal,
 			body: JSON.stringify({
 				metadata: ANTIGRAVITY_LOAD_CODE_ASSIST_METADATA,
 			}),
@@ -98,9 +99,10 @@ export async function discoverProject(
 			onProgress?.(`Provisioning Antigravity project (${tierId})...`);
 
 			try {
-				const onboardResponse = await fetcher(`${endpoint}/v1internal:onboardUser`, {
+				const onboardResponse = await fetch(`${endpoint}/v1internal:onboardUser`, {
 					method: "POST",
 					headers,
+					signal,
 					body: JSON.stringify({
 						tierId,
 						metadata: ANTIGRAVITY_LOAD_CODE_ASSIST_METADATA,
@@ -128,6 +130,7 @@ export async function discoverProject(
 
 export async function login(ctrl: OAuthController): Promise<OAuthCredentials> {
 	return runGoogleOAuthLogin(ctrl, {
+		provider: PROVIDER_ID,
 		clientId: CLIENT_ID,
 		clientSecret: CLIENT_SECRET,
 		authUrl: AUTH_URL,

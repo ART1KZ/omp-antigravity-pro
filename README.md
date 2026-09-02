@@ -66,10 +66,17 @@ See the [English guide](docs/GUIDE.en.md#caching) or [Russian guide](docs/GUIDE.
 
 ## Compatibility
 
-- OMP CLI: tested with `omp/17.2.0`
-- OMP peer packages: tested with `17.0.1`
+- OMP CLI: tested with `omp/18.1.2` and `omp/17.2.0`
+- OMP peer packages: tested with `18.1.2` (test suite) and `17.0.1`
 - Node.js: 20 or newer
 - Bun: used for the test suite
+
+OMP 18's google wire reads per-model `compat` (e.g. `ccaLegacyParametersSchema`
+for Claude tool schemas on Cloud Code Assist). Because the extension registers
+models under its private api id, the host rebuild leaves `compat` unset; the
+extension re-resolves the record through the catalog compat engine at stream
+time. On OMP 17, where the wire keys tool schemas off model ids, this step is a
+no-op.
 
 ## Development
 
