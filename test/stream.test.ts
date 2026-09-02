@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { Context, Model, SimpleStreamOptions } from "@oh-my-pi/pi-ai";
+import type { Context, Model, SimpleStreamOptions, Tool } from "@oh-my-pi/pi-ai";
 import { clearCustomApis, registerCustomApi } from "@oh-my-pi/pi-ai/api-registry";
 import type { ApiKeyResolveContext } from "@oh-my-pi/pi-ai/auth-retry";
 import { buildRequest, type GoogleGeminiCliOptions } from "@oh-my-pi/pi-ai/providers/google-gemini-cli";
 import { streamSimple } from "@oh-my-pi/pi-ai/stream";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { CUSTOM_API_ID } from "../src/models";
 import { createWireRequest, streamAntigravityPro } from "../src/stream";
@@ -23,6 +24,20 @@ function model(id: string): Model<"google-gemini-cli"> {
 
 function credential(token: string): string {
 	return JSON.stringify({ token, projectId: "project" });
+}
+
+/**
+ * Mirrors what the OMP host does with extension-registered models: the custom
+ * `api` is unknown to the catalog compat engine, so the rebuild produces a
+ * model whose `compat` is undefined even when the bundled source carried one.
+ */
+function hostRebuilt(id: string): Model {
+	const source = model(id);
+	return buildModel({
+		...source,
+		provider: "google-antigravity",
+		api: CUSTOM_API_ID,
+	} as never) as unknown as Model;
 }
 
 function successfulSse(): Response {
@@ -136,6 +151,41 @@ describe("Antigravity wire request", () => {
 		} finally {
 			clearCustomApis();
 		}
+	});
+
+	test("restores the google compat record dropped by the host custom-api rebuild", () => {
+		const hostBuilt = hostRebuilt("claude-sonnet-4-6");
+		expect(hostBuilt.compat).toBeUndefined();
+
+		const { wireModel } = createWireRequest(hostBuilt);
+
+		expect(wireModel.compat).toBeDefined();
+		expect(wireModel.compat?.ccaLegacyParametersSchema).toBe(true);
+		expect(wireModel.compat?.supportsFunctionPartId).toBe(true);
+		expect(wireModel.compat?.antigravityClaudeToolMode).toBe(true);
+	});
+
+	test("does not force legacy parameters onto gemini tool schemas", () => {
+		const hostBuilt = hostRebuilt("gemini-3.7-flash");
+		expect(hostBuilt.compat).toBeUndefined();
+
+		const { wireModel } = createWireRequest(hostBuilt);
+
+		expect(wireModel.compat).toBeDefined();
+		expect(wireModel.compat?.ccaLegacyParametersSchema).toBe(false);
+	});
+
+	test("tool conversion does not crash when the host stripped compat", () => {
+		const hostBuilt = hostRebuilt("claude-sonnet-4-6");
+		const { wireModel, wireOptions } = createWireRequest(hostBuilt);
+		const tool: Tool = {
+			name: "lookup",
+			description: "Look something up",
+			parameters: { type: "object", properties: { q: { type: "string" } } },
+		};
+		const payload = buildRequest(wireModel, { ...context, tools: [tool] }, "project", wireOptions, true);
+
+		expect(payload.request.tools).toBeDefined();
 	});
 
 	test("uses OMP sibling failover directly after a quota response", async () => {
