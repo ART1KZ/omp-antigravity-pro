@@ -47,7 +47,7 @@ The extension registers a separate custom API ID, `antigravity-pro`, because OMP
 
 ## 3. Requirements
 
-- Oh My Pi 17.x or 18.x;
+- Oh My Pi (versions 17.x, 18.x, and newer);
 - Node.js 20 or newer (optional, installer handles setup automatically);
 - a Google Antigravity OAuth account configured in OMP;
 - Bun is **not required** for end users — the automatic installer adapts to your system.

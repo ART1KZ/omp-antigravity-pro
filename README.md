@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ART1KZ/omp-antigravity-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/ART1KZ/omp-antigravity-pro/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Oh My Pi](https://img.shields.io/badge/Oh%20My%20Pi-17.x-5b5bd6)](https://github.com/can1357/oh-my-pi)
+[![Oh My Pi](https://img.shields.io/badge/Oh%20My%20Pi-%E2%89%A517.x%20%7C%2018.x%2B-5b5bd6)](https://github.com/can1357/oh-my-pi)
 
 [English guide](docs/GUIDE.en.md) | [Руководство на русском](docs/GUIDE.ru.md)
 
@@ -90,10 +90,9 @@ See the [English guide](docs/GUIDE.en.md#caching) or [Russian guide](docs/GUIDE.
 
 ## Compatibility
 
-- OMP CLI: tested with `omp/17.2.0`
-- OMP peer packages: tested with `17.0.1`
+- Oh My Pi: compatible with OMP `17.x`, `18.x`, and future versions (zero-update auto-adaptive compat)
 - Node.js: 20 or newer
-- Bun: used for the test suite
+- Bun: optional, supported for testing and native installations
 
 ## Development
 
