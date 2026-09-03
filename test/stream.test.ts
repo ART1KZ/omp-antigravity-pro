@@ -6,6 +6,7 @@ import { buildRequest, type GoogleGeminiCliOptions } from "@oh-my-pi/pi-ai/provi
 import { streamSimple } from "@oh-my-pi/pi-ai/stream";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import type { GoogleWireCompat } from "../src/compat";
 import { CUSTOM_API_ID } from "../src/models";
 import { createWireRequest, streamAntigravityPro } from "../src/stream";
 
@@ -169,5 +170,88 @@ describe("Antigravity wire request", () => {
 		} finally {
 			clearCustomApis();
 		}
+	});
+
+	test("restores and guarantees compat record on wireModel even when source model has undefined compat", () => {
+		const bareModel = {
+			...model("gpt-oss-120b"),
+			compat: undefined,
+		} as unknown as Model;
+
+		const { wireModel } = createWireRequest(bareModel);
+		const compat = (wireModel as unknown as { compat?: GoogleWireCompat }).compat;
+
+		expect(compat).toBeDefined();
+		expect(compat?.dropUnsignedThinking).toBe(false);
+		expect(compat?.ccaLegacyParametersSchema).toBe(false);
+	});
+
+	test("sets appropriate compat flags for Claude models on antigravity wire", () => {
+		const claudeModel = {
+			id: "claude-sonnet-4-6",
+			name: "Claude Sonnet 4.6",
+			api: CUSTOM_API_ID,
+			input: ["text", "image"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 200000,
+			maxTokens: 64000,
+		} as unknown as Model;
+
+		const { wireModel } = createWireRequest(claudeModel);
+		const compat = (wireModel as unknown as { compat?: GoogleWireCompat }).compat;
+
+		expect(compat).toBeDefined();
+		expect(compat?.dropUnsignedThinking).toBe(true);
+		expect(compat?.ccaLegacyParametersSchema).toBe(true);
+		expect(compat?.antigravityClaudeToolMode).toBe(true);
+		expect(compat?.supportsFunctionPartId).toBe(true);
+	});
+
+	test("sets appropriate compat flags for Gemini models including 3.8", () => {
+		const geminiModel = {
+			id: "gemini-3.8-flash",
+			name: "Gemini 3.8 Flash",
+			api: CUSTOM_API_ID,
+			input: ["text", "image"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 1048576,
+			maxTokens: 65536,
+		} as unknown as Model;
+
+		const { wireModel } = createWireRequest(geminiModel);
+		const compat = (wireModel as unknown as { compat?: GoogleWireCompat }).compat;
+
+		expect(compat).toBeDefined();
+		expect(compat?.dropUnsignedThinking).toBe(false);
+		expect(compat?.ccaLegacyParametersSchema).toBe(false);
+		expect(compat?.requiresSkipThoughtSignature).toBe(true);
+		expect(compat?.supportsFunctionPartId).toBe(true);
+	});
+
+	test("buildRequest succeeds without compat TypeError when tools are provided", () => {
+		const bareModel = {
+			...model("gemini-3.5-flash"),
+			compat: undefined,
+		} as unknown as Model;
+
+		const tool = {
+			name: "lookup",
+			description: "Look something up",
+			parameters: { type: "object", properties: { q: { type: "string" } } },
+		};
+
+		const { wireModel, wireOptions } = createWireRequest(bareModel);
+		const payload = buildRequest(wireModel, { ...context, tools: [tool] }, "project", wireOptions, true);
+
+		expect(payload.request.tools).toBeDefined();
+	});
+
+	test("handles computer tool choice without crashing", () => {
+		const bareModel = model("gemini-3.5-flash");
+		const { wireOptions } = createWireRequest(bareModel, {
+			toolChoice: { type: "computer" } as unknown as SimpleStreamOptions["toolChoice"],
+		});
+
+		expect(wireOptions.toolChoice).toBe("any");
 	});
 });

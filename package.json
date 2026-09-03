@@ -37,9 +37,11 @@
     "check": "npm run typecheck && npm run lint && npm test",
     "pack:check": "npm pack --dry-run"
   },
+  "dependencies": {
+    "@oh-my-pi/pi-ai": "^18.1.0",
+    "@oh-my-pi/pi-catalog": "^18.1.0"
+  },
   "peerDependencies": {
-    "@oh-my-pi/pi-ai": ">=18.0.0",
-    "@oh-my-pi/pi-catalog": ">=18.0.0",
     "@oh-my-pi/pi-coding-agent": ">=18.0.0"
   },
   "devDependencies": {

@@ -13,6 +13,8 @@ import {
 	requireSupportedEffort,
 	resolveWireModelId,
 } from "@oh-my-pi/pi-catalog/model-thinking";
+import type { GoogleWireCompat } from "./compat";
+import { resolveWireCompat } from "./compat";
 import { ANTIGRAVITY_DAILY_ENDPOINT, getAntigravityBaseUrl } from "./models";
 
 const MIN_OUTPUT_TOKENS = 1024;
@@ -34,7 +36,8 @@ export interface WireRequest {
 function mapToolChoice(choice: ToolChoice | undefined): GoogleGeminiCliOptions["toolChoice"] {
 	if (choice === undefined) return undefined;
 	if (choice === "auto" || choice === "none" || choice === "any") return choice;
-	if (choice === "required" || choice.type === "computer") return "any";
+	const choiceType = (choice as unknown as { type?: string }).type;
+	if (choice === "required" || choiceType === "computer") return "any";
 	const name = "function" in choice ? choice.function.name : choice.name;
 	return { mode: "ANY", allowedFunctionNames: [name] };
 }
@@ -50,12 +53,14 @@ function maxTokensWithThinkingBudget(
 
 function toWireModel(model: Model<Api>): Model<"google-gemini-cli"> {
 	const baseUrl = model.baseUrl?.trim() || getAntigravityBaseUrl();
-	return {
+	const wireModel = {
 		...(model as Model<"google-gemini-cli">),
-		api: "google-gemini-cli",
+		api: "google-gemini-cli" as const,
 		provider: "google-antigravity",
 		baseUrl,
 	};
+	(wireModel as unknown as { compat: GoogleWireCompat }).compat = resolveWireCompat(wireModel);
+	return wireModel as unknown as Model<"google-gemini-cli">;
 }
 
 export function createWireRequest(model: Model<Api>, options?: SimpleStreamOptions): WireRequest {

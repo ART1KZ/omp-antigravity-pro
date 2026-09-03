@@ -7,6 +7,7 @@ import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { fetchAntigravityDiscoveryModels } from "@oh-my-pi/pi-catalog/discovery";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import type { ProviderModelConfig } from "@oh-my-pi/pi-coding-agent";
+import { resolveWireCompat } from "./compat";
 
 export const PROVIDER_ID = "google-antigravity";
 export const CUSTOM_API_ID = "antigravity-pro";
@@ -204,6 +205,8 @@ export function projectAntigravityModel(model: Model<Api>): ProjectedAntigravity
 		contextWindow: requireLimit(model.contextWindow, model.id, "contextWindow"),
 		maxTokens: requireLimit(model.maxTokens, model.id, "maxTokens"),
 		headers: model.headers ? { ...model.headers } : undefined,
+		premiumMultiplier: model.premiumMultiplier,
+		compat: resolveWireCompat(model) as unknown as ProviderModelConfig["compat"],
 	};
 }
 

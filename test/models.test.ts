@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Model } from "@oh-my-pi/pi-ai";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import type { GoogleWireCompat } from "../src/compat";
 import {
 	CUSTOM_API_ID,
 	fetchDynamicAntigravityModels,
@@ -123,5 +124,23 @@ describe("Antigravity model projection", () => {
 		expect(dynamicModel?.api).toBe(CUSTOM_API_ID);
 		expect(dynamicModel?.contextWindow).toBe(2000000);
 		expect(dynamicModel?.input).toContain("image");
+	});
+
+	test("ensures compat record is always defined and tailored per model family", () => {
+		const projected = projectBundledAntigravityModels();
+		expect(projected.every((model) => model.compat !== undefined)).toBe(true);
+
+		const claude = projected.find((model) => model.id.startsWith("claude"));
+		const claudeCompat = claude?.compat as unknown as GoogleWireCompat | undefined;
+		expect(claudeCompat?.ccaLegacyParametersSchema).toBe(true);
+		expect(claudeCompat?.dropUnsignedThinking).toBe(true);
+		expect(claudeCompat?.antigravityClaudeToolMode).toBe(true);
+
+		const gemini = projected.find((model) => model.id === "gemini-3.6-flash" || model.id === "gemini-3.7-flash");
+		const geminiCompat = gemini?.compat as unknown as GoogleWireCompat | undefined;
+		expect(geminiCompat?.ccaLegacyParametersSchema).toBe(false);
+		expect(geminiCompat?.dropUnsignedThinking).toBe(false);
+		expect(geminiCompat?.requiresSkipThoughtSignature).toBe(true);
+		expect(geminiCompat?.supportsFunctionPartId).toBe(true);
 	});
 });
