@@ -192,18 +192,17 @@ function projectThinking(model: Model<Api>): ThinkingConfig | undefined {
 
 export function projectAntigravityModel(model: Model<Api>): ProjectedAntigravityModel {
 	return {
-		id: model.id,
-		name: model.name,
+		// Spread first: omp 18's google wire transport reads `model.compat`
+		// (ccaLegacyParametersSchema, dropUnsignedThinking, antigravityUsageLabel,
+		// ...) and `model.identity.class` directly off the model object, so the
+		// projection must not whittle the bundled entry down to a field list.
+		...model,
 		api: CUSTOM_API_ID,
 		baseUrl: getAntigravityBaseUrl(),
-		reasoning: model.reasoning,
 		thinking: projectThinking(model),
-		input: [...model.input],
-		cost: { ...model.cost },
 		contextWindow: requireLimit(model.contextWindow, model.id, "contextWindow"),
 		maxTokens: requireLimit(model.maxTokens, model.id, "maxTokens"),
 		headers: model.headers ? { ...model.headers } : undefined,
-		premiumMultiplier: model.premiumMultiplier,
 	};
 }
 
