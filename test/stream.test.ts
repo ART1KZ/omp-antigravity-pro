@@ -254,4 +254,22 @@ describe("Antigravity wire request", () => {
 
 		expect(wireOptions.toolChoice).toBe("any");
 	});
+
+	test("handles unexpected strings and missing names in toolChoice safely", () => {
+		const bareModel = model("gemini-3.5-flash");
+		const { wireOptions: o1 } = createWireRequest(bareModel, {
+			toolChoice: "custom-unsupported-string" as unknown as SimpleStreamOptions["toolChoice"],
+		});
+		expect(o1.toolChoice).toBeUndefined();
+
+		const { wireOptions: o2 } = createWireRequest(bareModel, {
+			toolChoice: { type: "function", function: { name: "myTool" } } as unknown as SimpleStreamOptions["toolChoice"],
+		});
+		expect(o2.toolChoice).toEqual({ mode: "ANY", allowedFunctionNames: ["myTool"] });
+
+		const { wireOptions: o3 } = createWireRequest(bareModel, {
+			toolChoice: { type: "function" } as unknown as SimpleStreamOptions["toolChoice"],
+		});
+		expect(o3.toolChoice).toBeUndefined();
+	});
 });

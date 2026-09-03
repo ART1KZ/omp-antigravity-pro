@@ -35,11 +35,16 @@ export interface WireRequest {
 
 function mapToolChoice(choice: ToolChoice | undefined): GoogleGeminiCliOptions["toolChoice"] {
 	if (choice === undefined) return undefined;
-	if (choice === "auto" || choice === "none" || choice === "any") return choice;
-	const choiceType = (choice as unknown as { type?: string }).type;
-	if (choice === "required" || choiceType === "computer") return "any";
-	const name = "function" in choice ? choice.function.name : choice.name;
-	return { mode: "ANY", allowedFunctionNames: [name] };
+	if (typeof choice === "string") {
+		if (choice === "auto" || choice === "none" || choice === "any") return choice;
+		if (choice === "required") return "any";
+		return undefined;
+	}
+	const choiceObj = choice as unknown as Record<string, unknown>;
+	if (choiceObj.type === "computer") return "any";
+	const fnObj = choiceObj.function as { name?: string } | undefined;
+	const name = fnObj?.name ?? (typeof choiceObj.name === "string" ? choiceObj.name : undefined);
+	return name ? { mode: "ANY", allowedFunctionNames: [name] } : undefined;
 }
 
 function maxTokensWithThinkingBudget(

@@ -47,8 +47,11 @@ export function createDefaultWireCompat(modelId: string): GoogleWireCompat {
 	}
 
 	if (isGemini) {
-		const requiresSkipThought =
-			lower.includes("3.5") || lower.includes("3.6") || lower.includes("3.7") || lower.includes("3.8");
+		const versionMatch = lower.match(/gemini-(\d+)(?:\.(\d+))?/);
+		const major = versionMatch ? Number.parseInt(versionMatch[1], 10) : 0;
+		const minor = versionMatch?.[2] ? Number.parseInt(versionMatch[2], 10) : 0;
+		const isOldGemini = major < 3 || (major === 3 && minor < 5 && !lower.includes("flash"));
+		const requiresSkipThought = !isOldGemini;
 
 		return {
 			supportsFunctionPartId: true,

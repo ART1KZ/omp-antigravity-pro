@@ -47,19 +47,37 @@ The extension registers a separate custom API ID, `antigravity-pro`, because OMP
 
 ## 3. Requirements
 
-- Oh My Pi 17.x;
-- Node.js 20 or newer for dependency installation and type checking;
+- Oh My Pi 17.x or 18.x;
+- Node.js 20 or newer (optional, installer handles setup automatically);
 - a Google Antigravity OAuth account configured in OMP;
-- Bun for development tests only.
-
-The extension was runtime-tested with `omp/17.2.0` while the installed OMP peer packages reported `17.0.1`.
+- Bun is **not required** for end users — the automatic installer adapts to your system.
 
 ## 4. Installation
 
-Install directly from GitHub:
+### One-line automatic install (recommended)
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/ART1KZ/omp-antigravity-pro/main/install.ps1 | iex
+```
+
+**Linux / macOS (Bash):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/ART1KZ/omp-antigravity-pro/main/install.sh | bash
+```
+
+> The automatic installer works even if `bun` is missing on your machine by using standard `npm`.
+
+### Manual install via OMP CLI (requires Bun)
 
 ```bash
 omp plugin install github:ART1KZ/omp-antigravity-pro
+```
+
+### Alternative install via npm (no Bun required)
+
+```bash
+npm --prefix ~/.omp/plugins install github:ART1KZ/omp-antigravity-pro
 ```
 
 Check plugin health:

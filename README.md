@@ -16,6 +16,22 @@ This extension replaces the `google-antigravity` provider in place and delegates
 
 ## Installation
 
+### One-line automatic install (recommended, zero prerequisites)
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/ART1KZ/omp-antigravity-pro/main/install.ps1 | iex
+```
+
+**Linux / macOS (Bash):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/ART1KZ/omp-antigravity-pro/main/install.sh | bash
+```
+
+> The automatic installer works even if `bun` is not installed on your PC — it seamlessly uses `npm` or bootstraps the required runtime.
+
+### Manual install via OMP CLI (requires Bun)
+
 ```bash
 omp plugin install github:ART1KZ/omp-antigravity-pro
 ```

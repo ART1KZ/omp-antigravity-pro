@@ -42,4 +42,55 @@ describe("OAuth discovery and fallback", () => {
 		expect(creds.refresh).toBe("new-refresh-token");
 		expect(creds.projectId).toBe("my-proj");
 	});
+
+	test("discoverProject propagates cancellation when AbortSignal is triggered", async () => {
+		const controller = new AbortController();
+		controller.abort();
+
+		const mockFetcher = (async () => {
+			const err = new Error("The operation was aborted");
+			err.name = "AbortError";
+			throw err;
+		}) as unknown as typeof fetch;
+
+		expect(discoverProject("test-token", undefined, controller.signal, mockFetcher)).rejects.toThrow();
+	});
+
+	test("discoverProject surfaces Google validation error", async () => {
+		const mockFetcher = (async () => {
+			return new Response(
+				JSON.stringify({
+					error: {
+						details: [
+							{
+								reason: "VALIDATION_REQUIRED",
+								metadata: {
+									validation_url: "https://accounts.google.com/signin/v2/challenge",
+								},
+							},
+						],
+					},
+				}),
+				{ status: 403 },
+			);
+		}) as unknown as typeof fetch;
+
+		expect(discoverProject("test-token", undefined, mockFetcher)).rejects.toThrow("Account verification required");
+	});
+
+	test("refreshAntigravityToken calculates safe non-negative expires", async () => {
+		const mockFetcher = (async () => {
+			return new Response(
+				JSON.stringify({
+					access_token: "new-access-token",
+					expires_in: 10,
+				}),
+				{ status: 200 },
+			);
+		}) as unknown as typeof fetch;
+
+		const now = Date.now();
+		const creds = await refreshAntigravityToken("old-refresh", "my-proj", mockFetcher);
+		expect(creds.expires).toBeGreaterThanOrEqual(now);
+	});
 });

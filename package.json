@@ -28,7 +28,9 @@
   },
   "files": [
     "src",
-    "docs"
+    "docs",
+    "install.ps1",
+    "install.sh"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

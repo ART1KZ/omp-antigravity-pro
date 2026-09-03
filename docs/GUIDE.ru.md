@@ -47,19 +47,37 @@ ID провайдера остаётся `google-antigravity`. Это принц
 
 ## 3. Требования
 
-- Oh My Pi 17.x;
-- Node.js 20 или новее для установки зависимостей и typecheck;
+- Oh My Pi 17.x или 18.x;
+- Node.js 20 или новее (опционально, скрипт автоматически всё настроит);
 - настроенный в OMP OAuth-аккаунт Google Antigravity;
-- Bun нужен только для тестов при разработке.
-
-Расширение проверено в реальном запуске с `omp/17.2.0`, когда установленные peer-пакеты OMP сообщали версию `17.0.1`.
+- Bun **не требуется** для пользователей плагина — автоматический инсталлятор сам выберет оптимальный способ установки.
 
 ## 4. Установка
 
-Установка напрямую с GitHub:
+### Автоматическая установка в одну строку (рекомендуется)
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/ART1KZ/omp-antigravity-pro/main/install.ps1 | iex
+```
+
+**Linux / macOS (Bash):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/ART1KZ/omp-antigravity-pro/main/install.sh | bash
+```
+
+> Скрипт сам определит окружение: если Bun нет на ПК, установка пройдёт без единой ошибки через Node.js / npm.
+
+### Ручная установка через OMP CLI (если установлен Bun)
 
 ```bash
 omp plugin install github:ART1KZ/omp-antigravity-pro
+```
+
+### Альтернативная установка через npm (без Bun)
+
+```bash
+npm --prefix ~/.omp/plugins install github:ART1KZ/omp-antigravity-pro
 ```
 
 Проверка состояния плагина:

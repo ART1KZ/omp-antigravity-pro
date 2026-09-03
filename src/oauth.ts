@@ -1,5 +1,9 @@
 import { runGoogleOAuthLogin } from "@oh-my-pi/pi-ai/oauth/google-oauth-shared";
 import type { OAuthController, OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
+import {
+	extractGoogleValidationUrl,
+	formatGoogleValidationRequiredMessage,
+} from "@oh-my-pi/pi-ai/utils/google-validation";
 import { getAntigravityUserAgent } from "@oh-my-pi/pi-catalog/wire/gemini-headers";
 import { getAntigravityBaseUrl, PROVIDER_ID } from "./models";
 
@@ -120,11 +124,29 @@ export async function discoverProject(
 						return provisionedProject;
 					}
 				}
-			} catch {
+			} catch (onboardErr) {
+				if (signal?.aborted || (onboardErr instanceof Error && onboardErr.name === "AbortError")) {
+					throw onboardErr;
+				}
 				// Fall through to fallback project
 			}
+		} else {
+			const errorText = await loadResponse.text();
+			const validationUrl = extractGoogleValidationUrl(errorText);
+			if (validationUrl) {
+				const validationError = new Error(formatGoogleValidationRequiredMessage(validationUrl, "sign in again"));
+				(validationError as { isValidationRequired?: boolean }).isValidationRequired = true;
+				throw validationError;
+			}
 		}
-	} catch {
+	} catch (err) {
+		if (
+			signal?.aborted ||
+			(err as { isValidationRequired?: boolean })?.isValidationRequired ||
+			(err instanceof Error && err.name === "AbortError")
+		) {
+			throw err;
+		}
 		// Fall through to fallback project
 	}
 
@@ -176,7 +198,7 @@ export async function refreshAntigravityToken(
 	return {
 		refresh: data.refresh_token || refreshToken,
 		access: data.access_token,
-		expires: Date.now() + data.expires_in * 1000 - 5 * 60 * 1000,
+		expires: Date.now() + Math.max(0, data.expires_in * 1000 - 5 * 60 * 1000),
 		projectId: projectId || DEFAULT_FALLBACK_PROJECT_ID,
 	};
 }

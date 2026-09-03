@@ -78,28 +78,35 @@ const GEMINI_36_FLASH_ROUTING = {
 
 const GEMINI_36_FLASH_ID = "gemini-3.6-flash";
 
-const GEMINI_37_FLASH_BUDGETS = {
-	[Effort.Minimal]: 1000,
-	[Effort.Low]: 1000,
-	[Effort.Medium]: 4000,
-	[Effort.High]: 10000,
-} as const;
-
-const GEMINI_37_FLASH_ROUTING = {
-	off: "gemini-3.7-flash-low",
-	[Effort.Minimal]: "gemini-3.7-flash-low",
-	[Effort.Low]: "gemini-3.7-flash-low",
-	[Effort.Medium]: "gemini-3.7-flash-medium",
-	[Effort.High]: "gemini-3.7-flash-high",
-} as const;
-
 const GEMINI_37_FLASH_ID = "gemini-3.7-flash";
+const GEMINI_38_FLASH_ID = "gemini-3.8-flash";
+
+const DEFAULT_GEMINI_FALLBACK: Model<Api> = {
+	id: "gemini-3.5-flash",
+	name: "Gemini 3.5 Flash",
+	api: "google-gemini-cli",
+	provider: PROVIDER_ID,
+	baseUrl: ANTIGRAVITY_DAILY_ENDPOINT,
+	reasoning: true,
+	input: ["text", "image"],
+	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+	contextWindow: 1_048_576,
+	maxTokens: 65_536,
+	compat: undefined,
+};
+
+function findGeminiTemplate(bundled: readonly Model<Api>[]): Model<Api> {
+	return (
+		bundled.find((model) => model.id === "gemini-3.5-flash") ||
+		bundled.find((model) => model.id === "gemini-3-flash") ||
+		bundled.find((model) => model.id === "gemini-2.5-flash") ||
+		bundled[0] ||
+		DEFAULT_GEMINI_FALLBACK
+	);
+}
 
 function createGemini36FlashFallback(bundled: readonly Model<Api>[]): Model<Api> {
-	const template = bundled.find((model) => model.id === "gemini-3.5-flash");
-	if (!template) {
-		throw new Error("Bundled Antigravity catalog has neither gemini-3.6-flash nor a gemini-3.5-flash template");
-	}
+	const template = findGeminiTemplate(bundled);
 	return {
 		...template,
 		id: GEMINI_36_FLASH_ID,
@@ -120,12 +127,7 @@ function createGemini36FlashFallback(bundled: readonly Model<Api>[]): Model<Api>
 }
 
 function createGemini37FlashFallback(bundled: readonly Model<Api>[]): Model<Api> {
-	const template =
-		bundled.find((model) => model.id === "gemini-3.6-flash") ||
-		bundled.find((model) => model.id === "gemini-3.5-flash");
-	if (!template) {
-		throw new Error("Bundled Antigravity catalog has no template for gemini-3.7-flash");
-	}
+	const template = bundled.find((model) => model.id === GEMINI_36_FLASH_ID) || findGeminiTemplate(bundled);
 	return {
 		...template,
 		id: GEMINI_37_FLASH_ID,
@@ -137,8 +139,44 @@ function createGemini37FlashFallback(bundled: readonly Model<Api>[]): Model<Api>
 		thinking: {
 			mode: "budget",
 			efforts: [Effort.Minimal, Effort.Low, Effort.Medium, Effort.High],
-			effortBudgets: GEMINI_37_FLASH_BUDGETS,
-			effortRouting: GEMINI_37_FLASH_ROUTING,
+			effortBudgets: GEMINI_36_FLASH_BUDGETS,
+			effortRouting: {
+				off: "gemini-3.7-flash-low",
+				[Effort.Minimal]: "gemini-3.7-flash-low",
+				[Effort.Low]: "gemini-3.7-flash-low",
+				[Effort.Medium]: "gemini-3.7-flash-medium",
+				[Effort.High]: "gemini-3.7-flash-high",
+			},
+			requiresEffort: true,
+			suppressWhenOff: true,
+		},
+	};
+}
+
+function createGemini38FlashFallback(bundled: readonly Model<Api>[]): Model<Api> {
+	const template =
+		bundled.find((model) => model.id === GEMINI_37_FLASH_ID) ||
+		bundled.find((model) => model.id === GEMINI_36_FLASH_ID) ||
+		findGeminiTemplate(bundled);
+	return {
+		...template,
+		id: GEMINI_38_FLASH_ID,
+		name: "Gemini 3.8 Flash",
+		baseUrl: getAntigravityBaseUrl(),
+		contextWindow: 1_048_576,
+		maxTokens: 65_536,
+		requestModelId: "gemini-3.8-flash-low",
+		thinking: {
+			mode: "budget",
+			efforts: [Effort.Minimal, Effort.Low, Effort.Medium, Effort.High],
+			effortBudgets: GEMINI_36_FLASH_BUDGETS,
+			effortRouting: {
+				off: "gemini-3.8-flash-low",
+				[Effort.Minimal]: "gemini-3.8-flash-low",
+				[Effort.Low]: "gemini-3.8-flash-low",
+				[Effort.Medium]: "gemini-3.8-flash-medium",
+				[Effort.High]: "gemini-3.8-flash-high",
+			},
 			requiresEffort: true,
 			suppressWhenOff: true,
 		},
@@ -157,31 +195,51 @@ function requireLimit(value: number | null, modelId: string, field: "contextWind
 	return value;
 }
 
+function isGeminiFlashNumbered(id: string): boolean {
+	return /^gemini-(?:[3-9]|\d{2,})(?:\.\d+)?-flash$/.test(id);
+}
+
 function projectThinking(model: Model<Api>): ThinkingConfig | undefined {
-	if (model.id === "gemini-3.6-flash") {
+	if (isGeminiFlashNumbered(model.id)) {
 		return {
 			mode: "budget",
 			efforts: [Effort.Minimal, Effort.Low, Effort.Medium, Effort.High],
 			effortBudgets: GEMINI_36_FLASH_BUDGETS,
-			effortRouting: GEMINI_36_FLASH_ROUTING,
-			requiresEffort: true,
-			suppressWhenOff: true,
-		};
-	}
-
-	if (model.id === "gemini-3.7-flash") {
-		return {
-			mode: "budget",
-			efforts: [Effort.Minimal, Effort.Low, Effort.Medium, Effort.High],
-			effortBudgets: GEMINI_37_FLASH_BUDGETS,
-			effortRouting: GEMINI_37_FLASH_ROUTING,
+			effortRouting: {
+				off: `${model.id}-low`,
+				[Effort.Minimal]: `${model.id}-low`,
+				[Effort.Low]: `${model.id}-low`,
+				[Effort.Medium]: `${model.id}-medium`,
+				[Effort.High]: `${model.id}-high`,
+			},
 			requiresEffort: true,
 			suppressWhenOff: true,
 		};
 	}
 
 	const thinking = model.thinking;
-	if (!thinking || model.requestModelId === undefined || thinking.effortRouting !== undefined) {
+	if (!thinking) {
+		return undefined;
+	}
+
+	if (thinking.mode === "google-level" && thinking.efforts && thinking.efforts.length > 0) {
+		const effortRouting: Partial<Record<Effort | "off", string>> = {
+			off: model.requestModelId ?? model.id,
+		};
+		for (const effort of thinking.efforts) {
+			effortRouting[effort] = thinking.effortRouting?.[effort] ?? model.requestModelId ?? model.id;
+		}
+		return {
+			mode: "budget",
+			efforts: [...thinking.efforts],
+			effortBudgets: GEMINI_36_FLASH_BUDGETS,
+			effortRouting,
+			requiresEffort: true,
+			suppressWhenOff: true,
+		};
+	}
+
+	if (model.requestModelId === undefined || thinking.effortRouting !== undefined) {
 		return thinking;
 	}
 
@@ -218,6 +276,9 @@ export function projectBundledAntigravityModels(): ProjectedAntigravityModel[] {
 	if (!models.some((model) => model.id === GEMINI_37_FLASH_ID)) {
 		models = [...models, createGemini37FlashFallback(models)];
 	}
+	if (!models.some((model) => model.id === GEMINI_38_FLASH_ID)) {
+		models = [...models, createGemini38FlashFallback(models)];
+	}
 	return models.map(projectAntigravityModel);
 }
 
@@ -249,6 +310,10 @@ export async function fetchDynamicAntigravityModels(
 			if (!models.some((model) => model.id === GEMINI_37_FLASH_ID)) {
 				const bundled = getBundledModels(PROVIDER_ID);
 				models.push(createGemini37FlashFallback(bundled));
+			}
+			if (!models.some((model) => model.id === GEMINI_38_FLASH_ID)) {
+				const bundled = getBundledModels(PROVIDER_ID);
+				models.push(createGemini38FlashFallback(bundled));
 			}
 			return models.map(projectAntigravityModel);
 		}

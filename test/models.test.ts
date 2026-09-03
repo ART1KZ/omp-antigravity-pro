@@ -72,12 +72,13 @@ describe("Antigravity model projection", () => {
 		});
 	});
 
-	test("adds Gemini 3.6 Flash and Gemini 3.7 Flash when the installed catalog predates them", () => {
+	test("adds Gemini 3.6 Flash, Gemini 3.7 Flash and Gemini 3.8 Flash when the installed catalog predates them", () => {
 		const source = getBundledModels("google-antigravity");
 		const projected = projectBundledAntigravityModels();
 		const expectedMinLength = source.length;
 		const gemini36 = projected.find((model) => model.id === "gemini-3.6-flash");
 		const gemini37 = projected.find((model) => model.id === "gemini-3.7-flash");
+		const gemini38 = projected.find((model) => model.id === "gemini-3.8-flash");
 
 		expect(projected.length).toBeGreaterThanOrEqual(expectedMinLength);
 		expect(gemini36).toBeDefined();
@@ -90,6 +91,12 @@ describe("Antigravity model projection", () => {
 		expect(gemini37?.contextWindow).toBe(1_048_576);
 		expect(gemini37?.maxTokens).toBe(65_536);
 		expect(gemini37?.thinking?.requiresEffort).toBe(true);
+
+		expect(gemini38).toBeDefined();
+		expect(gemini38?.name).toBe("Gemini 3.8 Flash");
+		expect(gemini38?.contextWindow).toBe(1_048_576);
+		expect(gemini38?.maxTokens).toBe(65_536);
+		expect(gemini38?.thinking?.requiresEffort).toBe(true);
 	});
 
 	test("fetchDynamicAntigravityModels falls back to bundled when no token", async () => {
@@ -97,6 +104,7 @@ describe("Antigravity model projection", () => {
 		expect(models.length).toBeGreaterThan(0);
 		expect(models.some((m) => m.id === "gemini-3.6-flash")).toBe(true);
 		expect(models.some((m) => m.id === "gemini-3.7-flash")).toBe(true);
+		expect(models.some((m) => m.id === "gemini-3.8-flash")).toBe(true);
 	});
 
 	test("fetchDynamicAntigravityModels parses live response and projects custom api", async () => {
@@ -142,5 +150,27 @@ describe("Antigravity model projection", () => {
 		expect(geminiCompat?.dropUnsignedThinking).toBe(false);
 		expect(geminiCompat?.requiresSkipThoughtSignature).toBe(true);
 		expect(geminiCompat?.supportsFunctionPartId).toBe(true);
+	});
+
+	test("automatically projects future Gemini flash and google-level thinking models", () => {
+		const futureFlash = {
+			id: "gemini-4-flash",
+			name: "Gemini 4 Flash",
+			api: "google-gemini-cli" as const,
+			provider: "google-antigravity",
+			baseUrl: "https://daily-cloudcode-pa.googleapis.com",
+			reasoning: true,
+			input: ["text", "image"] as Array<"text" | "image">,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 1_048_576,
+			maxTokens: 65_536,
+		} as unknown as Model;
+
+		const projected = projectAntigravityModel(futureFlash);
+		expect(projected.thinking?.mode).toBe("budget");
+		expect(projected.thinking?.requiresEffort).toBe(true);
+		expect(projected.thinking?.effortRouting?.off).toBe("gemini-4-flash-low");
+		expect(projected.thinking?.effortRouting?.[Effort.High]).toBe("gemini-4-flash-high");
+		expect((projected.compat as unknown as GoogleWireCompat).requiresSkipThoughtSignature).toBe(true);
 	});
 });
