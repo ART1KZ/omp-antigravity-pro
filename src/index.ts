@@ -13,7 +13,7 @@ import { streamAntigravityPro } from "./stream";
 /**
  * Replaces the stock `google-antigravity` transport in place: same provider id,
  * so existing logins, `/usage`, session stickiness and multi-account failover
- * in AuthStorage keep working. Only the wire shaping changes — Gemini 3.6 sends
+ * in AuthStorage keep working. Only the wire shaping changes — Gemini Flash models send
  * a numeric `thinkingBudget` with tier-specific wire ids (captured from `agy`
  * 1.1.8) instead of `thinkingLevel`, and routing defaults to the daily
  * endpoint that the real client uses (or ANTIGRAVITY_BASE_URL if configured).

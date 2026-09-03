@@ -6,13 +6,13 @@
 
 [English guide](docs/GUIDE.en.md) | [Руководство на русском](docs/GUIDE.ru.md)
 
-A focused [Oh My Pi](https://github.com/can1357/oh-my-pi) extension that fixes Google Antigravity Gemini 3.6 Flash wire routing while retaining OMP's native OAuth, account rotation, quota tracking, SSE parser, usage reporting, and session behavior.
+A focused [Oh My Pi](https://github.com/can1357/oh-my-pi) extension that enables Google Antigravity models (Gemini Flash, Pro, Claude, GPT-OSS) with budget-based thinking, automatic zero-code adaptation for latest and future Gemini models, and daily Cloud Code endpoint routing while retaining OMP's native OAuth, account rotation, quota tracking, SSE parser, usage reporting, and session behavior.
 
 ## Why
 
-Antigravity's production Cloud Code Assist endpoint expects Gemini 3.6 Flash effort tiers as wire-model IDs with numeric `thinkingBudget` values. Older OMP catalogs can instead describe the model with Google's `thinkingLevel` protocol, which may produce empty responses.
+Antigravity's production Cloud Code Assist endpoint expects Gemini Flash effort tiers as wire-model IDs with numeric `thinkingBudget` values. Stock OMP catalogs can describe Gemini models with Google's `thinkingLevel` protocol, which produces empty responses on Antigravity. Additionally, this extension automatically discovers and adapts any current and future Gemini models without requiring plugin updates.
 
-This extension replaces the `google-antigravity` provider in place and delegates requests to OMP's public `streamGoogleGeminiCli` transport. It changes only the Antigravity-specific model projection and thinking options.
+This extension replaces the `google-antigravity` provider in place and delegates requests to OMP's public `streamGoogleGeminiCli` transport. It changes only the Antigravity-specific model projection, thinking options, and resilient OAuth flow.
 
 ## Installation
 
@@ -38,28 +38,36 @@ omp plugin install github:ART1KZ/omp-antigravity-pro
 
 Use your existing Antigravity login, or run OMP and select Google Antigravity from `/login`.
 
-Verify the model is available:
+Verify models are available:
 
 ```bash
 omp models google-antigravity
 ```
 
-Run Gemini 3.6 Flash:
+Run Gemini Flash with thinking:
 
 ```bash
-omp --model google-antigravity/gemini-3.6-flash --thinking medium
+omp --model google-antigravity/gemini-3-flash --thinking high
 ```
 
-## Gemini 3.6 Flash mapping
+Or run Claude Sonnet on Antigravity:
 
-| Effort | Wire model | Thinking budget |
+```bash
+omp --model google-antigravity/claude-sonnet-4-6 --thinking high
+```
+
+## Gemini Flash Thinking Budget Mapping
+
+Gemini Flash models on Antigravity dynamically map effort levels to tiered wire models and numeric thinking budgets:
+
+| Effort | Wire tier | Thinking budget |
 | --- | --- | ---: |
-| `minimal` | `gemini-3.6-flash-low` | 1,000 |
-| `low` | `gemini-3.6-flash-low` | 1,000 |
-| `medium` | `gemini-3.6-flash-medium` | 4,000 |
-| `high` | `gemini-3.6-flash-high` | 10,000 |
+| `minimal` | `-low` | 1,000 |
+| `low` | `-low` | 1,000 |
+| `medium` | `-medium` | 4,000 |
+| `high` | `-high` | 10,000 |
 
-Requests are pinned to `https://daily-cloudcode-pa.googleapis.com`; the sandbox endpoint is never used.
+All current and future Gemini Flash versions automatically receive this mapping and routing. Requests are pinned to `https://daily-cloudcode-pa.googleapis.com`; the sandbox endpoint is never used.
 
 ## What remains native to OMP
 

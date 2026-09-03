@@ -4,9 +4,9 @@
 
 ## 1. Назначение
 
-`omp-antigravity-pro` — расширение Oh My Pi для встроенного провайдера `google-antigravity`. Оно исправляет формат запросов Gemini 3.6 Flash в Antigravity, не заменяя штатную авторизацию, планировщик аккаунтов, сетевой транспорт и SSE-парсер OMP.
+`omp-antigravity-pro` — расширение Oh My Pi для встроенного провайдера `google-antigravity`. Оно обеспечивает корректный формат запросов и числовые бюджеты мышления для моделей Gemini Flash, Pro, Claude и GPT-OSS в Antigravity, автоматическую адаптацию под любые новые версии моделей Gemini, и прямое подключение к production endpoint, не заменяя штатную авторизацию, планировщик аккаунтов, сетевой транспорт и SSE-парсер OMP.
 
-Расширение нужно потому, что production endpoint Cloud Code Assist использует для Gemini 3.6 Flash числовые бюджеты размышления и отдельные wire ID моделей для разных уровней effort. Старый каталог OMP может описывать эту же модель через протокол Google `thinkingLevel`, который не соответствует перехваченному формату Antigravity и способен приводить к пустым ответам.
+Расширение нужно потому, что production endpoint Cloud Code Assist использует для Gemini Flash числовые бюджеты размышления и отдельные wire ID моделей для разных уровней effort. Старый каталог OMP может описывать модель через неподдерживаемый протокол `thinkingLevel` или вовсе не содержать свежих моделей, что приводит к пустым ответам или невозможности выбрать актуальную модель.
 
 ## 2. Архитектура
 
@@ -28,9 +28,9 @@ ID провайдера остаётся `google-antigravity`. Это принц
 ### За что отвечает расширение
 
 - проецирует установленный каталог Antigravity на API `antigravity-pro`;
-- добавляет Gemini 3.6 Flash, если её нет в старой версии каталога;
-- выбирает wire ID Gemini 3.6 Flash по effort;
-- преобразует effort Gemini 3.6 Flash в числовой thinking budget;
+- автоматически адаптирует текущие и любые будущие версии Gemini Flash под числовые бюджеты мышления;
+- гарантирует доступность актуальных моделей Gemini Flash даже на устаревших каталогах OMP;
+- выбирает wire ID моделей по effort;
 - принудительно использует production daily endpoint;
 - адаптирует общие stream options OMP к штатному Google-транспорту.
 
@@ -93,10 +93,11 @@ omp plugin doctor
 omp models google-antigravity
 ```
 
-В списке должна присутствовать модель:
+В списке должны присутствовать модели Antigravity с поддержкой мышления, например:
 
 ```text
-google-antigravity/gemini-3.6-flash
+google-antigravity/gemini-3-flash
+google-antigravity/claude-sonnet-4-6
 ```
 
 ### Локальная установка для разработки
@@ -143,24 +144,26 @@ omp usage
 
 Расширение начинает с полного bundled-каталога `google-antigravity` из установленного пакета OMP. Оно сохраняет названия, возможности, типы входа, стоимость, лимиты, заголовки, premium multiplier и thinking metadata, после чего переключает модели на custom API.
 
-Если установленный каталог старше Gemini 3.6 Flash, compatibility model создаётся на основе полной runtime-модели Gemini 3.5 Flash. Благодаря этому сохраняются resolved compat metadata и другие обязательные поля, а не создаётся неполный объект вручную.
+Если установленный каталог хоста OMP ещё не содержит актуальных моделей Gemini Flash, плагин автоматически формирует их на основе полной runtime-модели из каталога OMP. Благодаря этому сохраняются resolved compat metadata, identity и все обязательные поля.
 
-### Gemini 3.6 Flash
+### Маппинг бюджетов Gemini Flash
 
-| Effort пользователя | Wire ID модели | `thinkingBudget` |
+Для моделей линейки Gemini Flash уровень effort динамически преобразуется в суффикс wire ID и числовой бюджет мышления:
+
+| Effort пользователя | Суффикс wire ID | `thinkingBudget` |
 | --- | --- | ---: |
-| `minimal` | `gemini-3.6-flash-low` | 1 000 |
-| `low` | `gemini-3.6-flash-low` | 1 000 |
-| `medium` | `gemini-3.6-flash-medium` | 4 000 |
-| `high` | `gemini-3.6-flash-high` | 10 000 |
+| `minimal` | `-low` | 1 000 |
+| `low` | `-low` | 1 000 |
+| `medium` | `-medium` | 4 000 |
+| `high` | `-high` | 10 000 |
 
-Gemini 3.6 Flash требует выбранный effort. Пример запуска:
+Все текущие и будущие версии Gemini Flash автоматически получают эти настройки. Пример запуска:
 
 ```bash
-omp --model google-antigravity/gemini-3.6-flash --thinking medium
+omp --model google-antigravity/gemini-3-flash --thinking high
 ```
 
-Остальные модели Antigravity сохраняют thinking-семантику установленного OMP. Модели с Google level protocol получают `thinkingLevel`, а модели в budget mode — `thinkingBudget`.
+Остальные модели Antigravity (включая Claude и GPT-OSS) работают со своими нативными параметрами thinking budget.
 
 ## 7. Жизненный цикл запроса
 
@@ -212,8 +215,8 @@ usage.cacheRead
 
 ```bash
 omp \
-  --model google-antigravity/gemini-3.6-flash \
-  --thinking medium \
+  --model google-antigravity/gemini-3-flash \
+  --thinking high \
   --mode json \
   --no-tools \
   --no-skills \
@@ -238,7 +241,7 @@ omp \
 
 ## 9. Решение проблем
 
-### Нет Gemini 3.6 Flash
+### Модели отсутствуют в каталоге
 
 ```bash
 omp plugin list
@@ -263,7 +266,7 @@ OAuth-запись неполная. Запустите OMP, выполните 
 
 ### Пустой ответ
 
-Убедитесь, что выбраны `google-antigravity/gemini-3.6-flash` и поддерживаемый effort. Запустите OMP в JSON mode для просмотра terminal error. Расширение уже фиксирует production routing и числовые budgets 3.6, но постоянные пустые ответы всё равно могут быть вызваны доступностью upstream, eligibility аккаунта или постепенным rollout модели.
+Убедитесь, что выбрана рабочая модель провайдера `google-antigravity` и поддерживаемый effort. Запустите OMP в JSON mode для просмотра terminal error. Расширение уже фиксирует production routing и числовые budgets, но пустые ответы могут быть вызваны доступностью upstream, временной недоступностью аккаунта или отсутствием прав доступа к модели.
 
 ### Ошибка 400 (User location is not supported)
 
@@ -304,7 +307,7 @@ npm run pack:check
 
 Контрактные тесты проверяют:
 
-- сохранение полного каталога и fallback Gemini 3.6;
+- сохранение полного каталога и автоматическая проекция моделей;
 - numeric budgets и wire routing;
 - использование только production endpoint;
 - передачу context, messages, tools и diagnostic callbacks;
@@ -317,8 +320,8 @@ npm run pack:check
 
 ```bash
 omp \
-  --model google-antigravity/gemini-3.6-flash \
-  --thinking medium \
+  --model google-antigravity/gemini-3-flash \
+  --thinking high \
   --no-tools \
   --no-skills \
   --no-rules \

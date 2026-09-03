@@ -4,9 +4,9 @@
 
 ## 1. Purpose
 
-`omp-antigravity-pro` is an Oh My Pi extension for the built-in `google-antigravity` provider. It corrects the Antigravity Gemini 3.6 Flash request contract without replacing OMP's authentication, account scheduler, request transport, or stream parser.
+`omp-antigravity-pro` is an Oh My Pi extension for the built-in `google-antigravity` provider. It enables Google Antigravity models (Gemini Flash, Pro, Claude, GPT-OSS) with budget-based thinking, automatic zero-code adaptation for latest and future Gemini models, and production daily endpoint routing, without replacing OMP's authentication, account scheduler, request transport, or stream parser.
 
-The extension exists because Antigravity's production Cloud Code Assist endpoint uses numeric thinking budgets and effort-specific wire-model IDs for Gemini 3.6 Flash. An older catalog may describe the same model with Google's `thinkingLevel` mode, which is not the captured Antigravity wire behavior and can lead to empty responses.
+The extension exists because Antigravity's production Cloud Code Assist endpoint expects Gemini Flash effort tiers as wire-model IDs with numeric `thinkingBudget` values. Stock OMP catalogs can describe Gemini models with Google's `thinkingLevel` protocol, which produces empty responses on Antigravity. Additionally, this extension automatically discovers and adapts current and future Gemini models without requiring manual plugin updates.
 
 ## 2. Design
 
@@ -28,9 +28,9 @@ The extension registers a separate custom API ID, `antigravity-pro`, because OMP
 ### Owned by this extension
 
 - projecting the installed Antigravity catalog onto `antigravity-pro`;
-- adding Gemini 3.6 Flash when an older installed catalog does not contain it;
-- selecting Gemini 3.6 Flash wire-model IDs by effort;
-- converting Gemini 3.6 Flash effort to a numeric thinking budget;
+- dynamically adapting current and future Gemini Flash models to numeric thinking budgets;
+- ensuring availability of Gemini Flash models even on older host catalogs;
+- selecting tiered wire-model IDs by effort;
 - forcing the production daily endpoint;
 - adapting OMP's generic stream options to the stock Google transport.
 
@@ -93,10 +93,11 @@ Verify the provider catalog:
 omp models google-antigravity
 ```
 
-The list should include:
+The list should include Antigravity models with thinking support, for example:
 
 ```text
-google-antigravity/gemini-3.6-flash
+google-antigravity/gemini-3-flash
+google-antigravity/claude-sonnet-4-6
 ```
 
 ### Local development link
@@ -143,24 +144,26 @@ omp usage
 
 The extension starts with the complete bundled `google-antigravity` catalog from the installed OMP package. It preserves model names, capabilities, input types, costs, limits, headers, premium multipliers, and thinking metadata, then switches each projected model to the custom API.
 
-For installed catalogs that predate Gemini 3.6 Flash, a compatibility model is derived from the installed Gemini 3.5 Flash runtime model. Derivation preserves resolved compatibility metadata rather than constructing an incomplete model from scratch.
+If the installed host OMP catalog predates newer Gemini Flash models, the plugin automatically derives compatibility models from the host's runtime models. This ensures resolved compatibility metadata, identity, and required fields are preserved without maintaining hardcoded snapshots.
 
-### Gemini 3.6 Flash
+### Gemini Flash Thinking Budget Mapping
 
-| User effort | Wire model ID | `thinkingBudget` |
+For Gemini Flash models, user effort dynamically translates to wire-model suffixes and numeric thinking budgets:
+
+| User effort | Wire tier suffix | `thinkingBudget` |
 | --- | --- | ---: |
-| `minimal` | `gemini-3.6-flash-low` | 1,000 |
-| `low` | `gemini-3.6-flash-low` | 1,000 |
-| `medium` | `gemini-3.6-flash-medium` | 4,000 |
-| `high` | `gemini-3.6-flash-high` | 10,000 |
+| `minimal` | `-low` | 1,000 |
+| `low` | `-low` | 1,000 |
+| `medium` | `-medium` | 4,000 |
+| `high` | `-high` | 10,000 |
 
-Gemini 3.6 Flash requires an effort. Run it with, for example:
+All current and future Gemini Flash models automatically inherit this configuration. Run it with, for example:
 
 ```bash
-omp --model google-antigravity/gemini-3.6-flash --thinking medium
+omp --model google-antigravity/gemini-3-flash --thinking high
 ```
 
-Other Antigravity models keep their installed OMP thinking semantics. Models using Google's level protocol still receive `thinkingLevel`; budget-mode models receive `thinkingBudget`.
+Other Antigravity models (including Claude and GPT-OSS) retain their native thinking budget semantics.
 
 ## 7. Request lifecycle
 
@@ -212,8 +215,8 @@ Run a request in JSON mode:
 
 ```bash
 omp \
-  --model google-antigravity/gemini-3.6-flash \
-  --thinking medium \
+  --model google-antigravity/gemini-3-flash \
+  --thinking high \
   --mode json \
   --no-tools \
   --no-skills \
@@ -238,7 +241,7 @@ Only a positive `cacheRead` is evidence of a hit. For meaningful experiments, us
 
 ## 9. Troubleshooting
 
-### Gemini 3.6 Flash is missing
+### Models are missing from catalog
 
 ```bash
 omp plugin list
@@ -263,7 +266,7 @@ Two extensions overriding `google-antigravity` can be load-order dependent. Disa
 
 ### Empty response
 
-Confirm that you selected `google-antigravity/gemini-3.6-flash` and a supported effort. Run with JSON output to inspect the terminal error. The extension already pins production routing and numeric Gemini 3.6 budgets; persistent empty responses can still originate from upstream availability, account eligibility, or model rollout state.
+Confirm that you selected an available model under `google-antigravity` and a supported effort. Run with JSON output to inspect the terminal error. The extension already pins production routing and numeric budgets; empty responses can originate from upstream availability, account permissions, or model rollout state.
 
 ### HTTP 400 error (User location is not supported)
 
@@ -304,7 +307,7 @@ npm run pack:check
 
 The tests verify:
 
-- complete catalog preservation and Gemini 3.6 fallback;
+- complete catalog preservation and automatic model projection;
 - numeric budgets and wire routing;
 - production-only endpoint selection;
 - context, messages, tools, and diagnostics passthrough;
@@ -317,8 +320,8 @@ A live smoke test can be run with:
 
 ```bash
 omp \
-  --model google-antigravity/gemini-3.6-flash \
-  --thinking medium \
+  --model google-antigravity/gemini-3-flash \
+  --thinking high \
   --no-tools \
   --no-skills \
   --no-rules \

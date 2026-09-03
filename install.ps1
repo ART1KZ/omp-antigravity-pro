@@ -129,10 +129,9 @@ if ($IsInstalled) {
     Write-Host "  1. Verify installed models:" -ForegroundColor Gray
     Write-Host "     omp models google-antigravity" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "  2. Run Gemini Flash with thinking budget:" -ForegroundColor Gray
-    Write-Host "     omp --model google-antigravity/gemini-3.6-flash --thinking medium" -ForegroundColor Yellow
-    Write-Host "     omp --model google-antigravity/gemini-3.7-flash --thinking high" -ForegroundColor Yellow
-    Write-Host "     omp --model google-antigravity/gemini-3.8-flash --thinking high" -ForegroundColor Yellow
+    Write-Host "  2. Run any model with thinking budget (e.g. Gemini, Claude):" -ForegroundColor Gray
+    Write-Host "     omp --model google-antigravity/gemini-3-flash --thinking high" -ForegroundColor Yellow
+    Write-Host "     omp --model google-antigravity/claude-sonnet-4-6 --thinking high" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  3. Log in or switch accounts anytime:" -ForegroundColor Gray
     Write-Host "     omp /login  (select Google Antigravity)" -ForegroundColor Yellow
