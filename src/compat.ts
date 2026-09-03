@@ -94,8 +94,8 @@ export function resolveWireCompat(model: Model<Api> | { id: string; [key: string
 	}
 
 	return {
+		...(dynamicPolicy ?? {}),
 		...defaults,
 		...(existing ?? {}),
-		...(dynamicPolicy ?? {}),
 	};
 }

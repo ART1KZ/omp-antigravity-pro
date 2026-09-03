@@ -1,4 +1,5 @@
-import { runGoogleOAuthLogin } from "@oh-my-pi/pi-ai/oauth/google-oauth-shared";
+import { OAuthCallbackFlow } from "@oh-my-pi/pi-ai/oauth/callback-server";
+import { oauthFetch, throwIfLoginCancelled } from "@oh-my-pi/pi-ai/oauth/google-oauth-shared";
 import type { OAuthController, OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
 import {
 	extractGoogleValidationUrl,
@@ -154,18 +155,66 @@ export async function discoverProject(
 	return DEFAULT_FALLBACK_PROJECT_ID;
 }
 
+export class GoogleOAuthFlow extends OAuthCallbackFlow {
+	constructor(ctrl: OAuthController) {
+		super(ctrl, {
+			preferredPort: CALLBACK_PORT,
+			callbackPath: CALLBACK_PATH,
+			allowPortFallback: false,
+		});
+	}
+
+	async generateAuthUrl(state: string, redirectUri: string): Promise<{ url: string; instructions?: string }> {
+		const authParams = new URLSearchParams({
+			client_id: CLIENT_ID,
+			response_type: "code",
+			redirect_uri: redirectUri,
+			scope: SCOPES.join(" "),
+			state,
+			access_type: "offline",
+			prompt: "consent",
+		});
+		return { url: `${AUTH_URL}?${authParams.toString()}` };
+	}
+
+	async exchangeToken(code: string, _state: string, redirectUri: string): Promise<OAuthCredentials> {
+		throwIfLoginCancelled(this.ctrl.signal);
+		const tokenResponse = await oauthFetch(
+			TOKEN_URL,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({
+					client_id: CLIENT_ID,
+					client_secret: CLIENT_SECRET,
+					code,
+					grant_type: "authorization_code",
+					redirect_uri: redirectUri,
+				}),
+			},
+			{ provider: PROVIDER_ID, signal: this.ctrl.signal },
+		);
+
+		const data = (await tokenResponse.json()) as {
+			access_token: string;
+			refresh_token: string;
+			expires_in: number;
+		};
+
+		const projectId = await discoverProject(data.access_token, this.ctrl.onProgress, this.ctrl.signal);
+
+		return {
+			access: data.access_token,
+			refresh: data.refresh_token,
+			expires: Date.now() + Math.max(0, data.expires_in * 1000 - 5 * 60 * 1000),
+			projectId,
+		};
+	}
+}
+
 export async function login(ctrl: OAuthController): Promise<OAuthCredentials> {
-	return runGoogleOAuthLogin(ctrl, {
-		clientId: CLIENT_ID,
-		clientSecret: CLIENT_SECRET,
-		authUrl: AUTH_URL,
-		tokenUrl: TOKEN_URL,
-		scopes: SCOPES,
-		callbackPort: CALLBACK_PORT,
-		callbackPath: CALLBACK_PATH,
-		discoverProject,
-		...({ provider: PROVIDER_ID } as unknown as { provider?: string }),
-	});
+	const flow = new GoogleOAuthFlow(ctrl);
+	return flow.login();
 }
 
 export async function refreshAntigravityToken(

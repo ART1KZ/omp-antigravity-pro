@@ -93,6 +93,10 @@ const DEFAULT_GEMINI_FALLBACK: Model<Api> = {
 	contextWindow: 1_048_576,
 	maxTokens: 65_536,
 	compat: undefined,
+	identity: {
+		class: "gemini",
+		family: "gemini",
+	},
 };
 
 function findGeminiTemplate(bundled: readonly Model<Api>[]): Model<Api> {

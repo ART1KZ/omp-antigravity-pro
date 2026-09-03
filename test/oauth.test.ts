@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_FALLBACK_PROJECT_ID, discoverProject, refreshAntigravityToken } from "../src/oauth";
+import {
+	DEFAULT_FALLBACK_PROJECT_ID,
+	discoverProject,
+	GoogleOAuthFlow,
+	type login,
+	refreshAntigravityToken,
+} from "../src/oauth";
 
 describe("OAuth discovery and fallback", () => {
 	test("discoverProject uses existing project from loadCodeAssist", async () => {
@@ -92,5 +98,14 @@ describe("OAuth discovery and fallback", () => {
 		const now = Date.now();
 		const creds = await refreshAntigravityToken("old-refresh", "my-proj", mockFetcher);
 		expect(creds.expires).toBeGreaterThanOrEqual(now);
+	});
+
+	test("GoogleOAuthFlow creates valid authorization url", async () => {
+		const ctrl = { signal: new AbortController().signal } as unknown as Parameters<typeof login>[0];
+		const flow = new GoogleOAuthFlow(ctrl);
+		const { url } = await flow.generateAuthUrl("state-123", "http://localhost:51121/oauth-callback");
+		expect(url).toContain("accounts.google.com");
+		expect(url).toContain("state=state-123");
+		expect(url).toContain("redirect_uri=http%3A%2F%2Flocalhost%3A51121%2Foauth-callback");
 	});
 });

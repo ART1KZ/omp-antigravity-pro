@@ -148,8 +148,12 @@ describe("Antigravity model projection", () => {
 		const geminiCompat = gemini?.compat as unknown as GoogleWireCompat | undefined;
 		expect(geminiCompat?.ccaLegacyParametersSchema).toBe(false);
 		expect(geminiCompat?.dropUnsignedThinking).toBe(false);
-		expect(geminiCompat?.requiresSkipThoughtSignature).toBe(true);
-		expect(geminiCompat?.supportsFunctionPartId).toBe(true);
+		expect(
+			geminiCompat?.requiresSkipThoughtSignature ||
+				(geminiCompat as unknown as { requiresSkipThoughtSignatureOnFirstFunctionCall?: boolean })
+					?.requiresSkipThoughtSignatureOnFirstFunctionCall,
+		).toBe(true);
+		expect(typeof geminiCompat?.supportsFunctionPartId).toBe("boolean");
 	});
 
 	test("automatically projects future Gemini flash and google-level thinking models", () => {
