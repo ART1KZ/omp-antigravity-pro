@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Api, Model, ThinkingConfig } from "@oh-my-pi/pi-ai";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { fetchAntigravityDiscoveryModels } from "@oh-my-pi/pi-catalog/discovery";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import type { ProviderModelConfig } from "@oh-my-pi/pi-coding-agent";
@@ -234,7 +235,10 @@ export async function fetchDynamicAntigravityModels(
 		});
 
 		if (discovered && discovered.length > 0) {
-			const models: Model<Api>[] = [...(discovered as unknown as Model<Api>[])];
+			// Discovery returns bare ModelSpecs (no identity/compat); materialize
+			// them the same way the ModelManager does, or the google wire transport
+			// crashes reading model.compat off the projected models.
+			const models: Model<Api>[] = discovered.map((spec) => buildModel({ ...spec, provider: PROVIDER_ID }));
 			if (!models.some((model) => model.id === GEMINI_36_FLASH_ID)) {
 				const bundled = getBundledModels(PROVIDER_ID);
 				models.push(createGemini36FlashFallback(bundled));
