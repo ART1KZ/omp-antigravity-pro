@@ -36,7 +36,7 @@ describe("extension registration", () => {
 		expect(config.fetchDynamicModels).toBeDefined();
 		expect(config.authHeader).toBeUndefined();
 
-		const def = getProviderDefinition(PROVIDER_ID);
+		const def = getProviderDefinition(PROVIDER_ID) as { login?: unknown; refreshToken?: unknown } | undefined;
 		expect(def?.login).toBe(config.oauth?.login);
 		expect(def?.refreshToken).toBe(config.oauth?.refreshToken);
 	});

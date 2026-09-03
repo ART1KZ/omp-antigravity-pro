@@ -34,7 +34,7 @@ export interface WireRequest {
 function mapToolChoice(choice: ToolChoice | undefined): GoogleGeminiCliOptions["toolChoice"] {
 	if (choice === undefined) return undefined;
 	if (choice === "auto" || choice === "none" || choice === "any") return choice;
-	if (choice === "required") return "any";
+	if (choice === "required" || choice.type === "computer") return "any";
 	const name = "function" in choice ? choice.function.name : choice.name;
 	return { mode: "ANY", allowedFunctionNames: [name] };
 }
