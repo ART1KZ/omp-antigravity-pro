@@ -108,4 +108,26 @@ describe("OAuth discovery and fallback", () => {
 		expect(url).toContain("state=state-123");
 		expect(url).toContain("redirect_uri=http%3A%2F%2Flocalhost%3A51121%2Foauth-callback");
 	});
+
+	test("discoverProject falls back to aicode-consumers on HTTP 403 without validation challenge", async () => {
+		const mockFetcher = (async () => {
+			return new Response(JSON.stringify({ error: { code: 403, message: "User is not entitled" } }), {
+				status: 403,
+			});
+		}) as unknown as typeof fetch;
+
+		const projectId = await discoverProject("test-token", undefined, mockFetcher);
+		expect(projectId).toBe(DEFAULT_FALLBACK_PROJECT_ID);
+	});
+
+	test("discoverProject falls back to aicode-consumers on HTTP 400 ineligible account", async () => {
+		const mockFetcher = (async () => {
+			return new Response(JSON.stringify({ error: { code: 400, message: "Account ineligible" } }), {
+				status: 400,
+			});
+		}) as unknown as typeof fetch;
+
+		const projectId = await discoverProject("test-token", undefined, mockFetcher);
+		expect(projectId).toBe(DEFAULT_FALLBACK_PROJECT_ID);
+	});
 });

@@ -4,13 +4,18 @@ import type { Api, Model } from "@oh-my-pi/pi-ai";
 export interface GoogleWireCompat {
 	supportsFunctionPartId: boolean;
 	requiresSkipThoughtSignature: boolean;
+	requiresSkipThoughtSignatureOnFirstFunctionCall?: boolean;
 	dropUnsignedThinking: boolean;
 	ccaLegacyParametersSchema: boolean;
 	multimodalFunctionResponse: boolean;
 	flashStreamLeakWorkaround: boolean;
 	antigravityClaudeToolMode?: boolean;
 	claudeThinkingBetaHeader?: boolean;
+	thinkingLoopGuard?: string;
+	stripImageInput?: boolean;
+	streamFirstEventTimeoutMs?: number;
 	antigravityUsageLabel?: string;
+	[key: string]: unknown;
 }
 
 type PolicyResolver = (model: unknown) => { compat?: Partial<GoogleWireCompat> } | undefined;
@@ -93,9 +98,22 @@ export function resolveWireCompat(model: Model<Api> | { id: string; [key: string
 		}
 	}
 
-	return {
+	const merged = {
 		...(dynamicPolicy ?? {}),
 		...defaults,
 		...(existing ?? {}),
 	};
+
+	return createDefensiveWireCompat(merged as Record<string, unknown>);
+}
+
+export function createDefensiveWireCompat(rawCompat: Record<string, unknown>): GoogleWireCompat {
+	return new Proxy(rawCompat, {
+		get(target, prop, receiver) {
+			if (typeof prop === "string" && !(prop in target)) {
+				return undefined;
+			}
+			return Reflect.get(target, prop, receiver);
+		},
+	}) as GoogleWireCompat;
 }

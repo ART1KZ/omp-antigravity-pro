@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Model } from "@oh-my-pi/pi-ai";
 import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
-import type { GoogleWireCompat } from "../src/compat";
+import { type GoogleWireCompat, resolveWireCompat } from "../src/compat";
 import {
 	CUSTOM_API_ID,
 	fetchDynamicAntigravityModels,
@@ -176,5 +176,16 @@ describe("Antigravity model projection", () => {
 		expect(projected.thinking?.effortRouting?.off).toBe("gemini-4-flash-low");
 		expect(projected.thinking?.effortRouting?.[Effort.High]).toBe("gemini-4-flash-high");
 		expect((projected.compat as unknown as GoogleWireCompat).requiresSkipThoughtSignature).toBe(true);
+	});
+
+	test("defensive compat safely returns undefined for unknown future properties without crashing", () => {
+		const model = {
+			id: "gemini-3.7-flash",
+			api: "google-gemini-cli" as const,
+			provider: "google-antigravity",
+		};
+		const compat = resolveWireCompat(model);
+		expect((compat as Record<string, unknown>).someCompletelyNewFutureProperty).toBeUndefined();
+		expect(typeof compat.supportsFunctionPartId).toBe("boolean");
 	});
 });

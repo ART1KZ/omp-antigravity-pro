@@ -79,7 +79,7 @@ if ($HasBun -and $HasOmp) {
 if (-not $InstallSuccess -and $HasNpm) {
     Write-Info "Using npm to install directly into '$PluginsDir' (no Bun required)..."
     try {
-        & npm --prefix $PluginsDir install github:ART1KZ/omp-antigravity-pro --no-fund --no-audit
+        & npm --prefix "$PluginsDir" install github:ART1KZ/omp-antigravity-pro --no-fund --no-audit
         if ($LASTEXITCODE -eq 0) {
             $InstallSuccess = $true
         } else {
@@ -104,7 +104,7 @@ if (-not $InstallSuccess -and (-not $HasBun) -and (-not $HasNpm)) {
             if ($HasOmp) {
                 & omp plugin install github:ART1KZ/omp-antigravity-pro --force
             } else {
-                & bun install --cwd $PluginsDir github:ART1KZ/omp-antigravity-pro
+                & bun install --cwd "$PluginsDir" github:ART1KZ/omp-antigravity-pro
             }
             if ($LASTEXITCODE -eq 0) {
                 $InstallSuccess = $true

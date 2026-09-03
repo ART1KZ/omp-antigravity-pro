@@ -1,12 +1,41 @@
 import { OAuthCallbackFlow } from "@oh-my-pi/pi-ai/oauth/callback-server";
 import { oauthFetch, throwIfLoginCancelled } from "@oh-my-pi/pi-ai/oauth/google-oauth-shared";
 import type { OAuthController, OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
-import {
-	extractGoogleValidationUrl,
-	formatGoogleValidationRequiredMessage,
-} from "@oh-my-pi/pi-ai/utils/google-validation";
-import { getAntigravityUserAgent } from "@oh-my-pi/pi-catalog/wire/gemini-headers";
 import { getAntigravityBaseUrl, PROVIDER_ID } from "./models";
+
+export function extractGoogleValidationUrl(errorBody: string): string | undefined {
+	if (!errorBody.includes("VALIDATION_REQUIRED")) return undefined;
+	const start = errorBody.indexOf("{");
+	if (start === -1) return undefined;
+	try {
+		const parsed = JSON.parse(errorBody.slice(start)) as {
+			error?: { details?: Array<{ reason?: string; metadata?: { validation_url?: string } }> };
+		};
+		const detail = parsed.error?.details?.find(
+			(d) => d.reason === "VALIDATION_REQUIRED" && typeof d.metadata?.validation_url === "string",
+		);
+		return detail?.metadata?.validation_url;
+	} catch {
+		return undefined;
+	}
+}
+
+export function formatGoogleValidationRequiredMessage(
+	validationUrl: string,
+	nextAction: string,
+	email?: string,
+): string {
+	const account = email ? ` for ${email}` : "";
+	return `Account verification required${account}. Visit ${validationUrl} to continue, then ${nextAction}.`;
+}
+
+export function getAntigravityUserAgent(): string {
+	const version = process.env.PI_AI_ANTIGRAVITY_VERSION || "2.8.0";
+	const cl = process.env.PI_AI_ANTIGRAVITY_CL || "963137146";
+	const os = process.env.PI_AI_ANTIGRAVITY_OS || "darwin";
+	const arch = process.env.PI_AI_ANTIGRAVITY_ARCH || "arm64";
+	return `antigravity/hub/${version} (aidev_client; os_type=${os}; arch=${arch}; cl=${cl})`;
+}
 
 const P1 = ["1071006060591", "tmhssin2h21lcre235vtolojh4g403ep", "apps.googleusercontent.com"].join("-");
 export const CLIENT_ID = P1.replace("-apps.", ".apps.");
@@ -36,6 +65,7 @@ interface LoadCodeAssistPayload {
 	cloudaicompanionProject?: string | { id?: string };
 	currentTier?: { id?: string };
 	allowedTiers?: Array<{ id?: string; isDefault?: boolean }>;
+	ineligibleTiers?: Array<{ tierId?: string; reasonCode?: string; reasonMessage?: string }>;
 }
 
 interface LongRunningOperationResponse {
@@ -102,6 +132,15 @@ export async function discoverProject(
 			const existingProject = readProjectId(loadPayload.cloudaicompanionProject);
 			if (existingProject) {
 				return existingProject;
+			}
+
+			if (
+				loadPayload.ineligibleTiers &&
+				loadPayload.ineligibleTiers.length > 0 &&
+				(!loadPayload.allowedTiers || loadPayload.allowedTiers.length === 0)
+			) {
+				onProgress?.("Account is ineligible for free tier; using default Antigravity consumer project...");
+				return DEFAULT_FALLBACK_PROJECT_ID;
 			}
 
 			const tierId = getDefaultTierId(loadPayload.allowedTiers);
@@ -203,11 +242,29 @@ export class GoogleOAuthFlow extends OAuthCallbackFlow {
 
 		const projectId = await discoverProject(data.access_token, this.ctrl.onProgress, this.ctrl.signal);
 
+		let email: string | undefined;
+		try {
+			const userInfoRes = await oauthFetch(
+				"https://www.googleapis.com/oauth2/v2/userinfo",
+				{ headers: { Authorization: `Bearer ${data.access_token}` } },
+				{ provider: PROVIDER_ID, signal: this.ctrl.signal, timeoutMs: 5000 },
+			);
+			if (userInfoRes.ok) {
+				const userJson = (await userInfoRes.json()) as { email?: string };
+				if (typeof userJson.email === "string" && userJson.email.length > 0) {
+					email = userJson.email;
+				}
+			}
+		} catch {
+			// Best-effort: userinfo failure leaves email unset without failing login
+		}
+
 		return {
 			access: data.access_token,
 			refresh: data.refresh_token,
 			expires: Date.now() + Math.max(0, data.expires_in * 1000 - 5 * 60 * 1000),
 			projectId,
+			...(email ? { email } : {}),
 		};
 	}
 }
