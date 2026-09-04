@@ -74,6 +74,11 @@ fi
 
 PLUGIN_PATH="${PLUGINS_DIR}/node_modules/omp-antigravity-pro"
 if [ -d "${PLUGIN_PATH}" ] || [ "$INSTALL_SUCCESS" = true ]; then
+  # Configure inlineToolDescriptors to prevent subagent crashes on Gemini models (OMP 18.1.10+)
+  if [ "$HAS_OMP" = true ]; then
+    omp config set inlineToolDescriptors off >/dev/null 2>&1 || true
+    info "Configured inlineToolDescriptors = off (prevents OMP subagent crashes on Gemini)"
+  fi
   echo ""
   echo -e "${GREEN}================================================================${NC}"
   echo -e "${GREEN} [OK] omp-antigravity-pro successfully installed and ready!     ${NC}"

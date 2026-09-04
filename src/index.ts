@@ -1,5 +1,6 @@
 import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import { ensureSafeInlineToolDescriptors } from "./config";
 import {
 	CUSTOM_API_ID,
 	fetchDynamicAntigravityModels,
@@ -20,6 +21,10 @@ import { streamAntigravityPro } from "./stream";
  */
 export default function antigravityProExtension(pi: ExtensionAPI): void {
 	pi.setLabel("Antigravity Pro (daily endpoint, budget thinking)");
+
+	// Ensure inlineToolDescriptors: "off" is set in ~/.omp/agent/config.yml to prevent
+	// subagent crashes under Gemini models on OMP 18.1.10+.
+	ensureSafeInlineToolDescriptors();
 
 	// Override built-in provider definition so interactive /login and AuthStorage.login
 	// always use our proxy-aware login and ineligible bypass instead of the stock flow.

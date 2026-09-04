@@ -36,7 +36,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check src test",
     "test": "bun test",
-    "check": "npm run typecheck && npm run lint && npm test",
+    "check": "bun run typecheck && bun run lint && bun test",
     "pack:check": "npm pack --dry-run"
   },
   "dependencies": {

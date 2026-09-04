@@ -120,6 +120,15 @@ $PluginInstalledPath = Join-Path (Join-Path $PluginsDir "node_modules") "omp-ant
 $IsInstalled = (Test-Path $PluginInstalledPath) -or $InstallSuccess
 
 if ($IsInstalled) {
+    # 4. Configure inlineToolDescriptors to prevent subagent crashes on Gemini models (OMP 18.1.10+)
+    if ($HasOmp) {
+        try {
+            & omp config set inlineToolDescriptors off | Out-Null
+            Write-Info "Configured inlineToolDescriptors = off (prevents OMP subagent crashes on Gemini)"
+        } catch {
+            # Non-fatal if config set fails
+        }
+    }
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Green
     Write-Host " [OK] omp-antigravity-pro successfully installed and ready!     " -ForegroundColor Green
