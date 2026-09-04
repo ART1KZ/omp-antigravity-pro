@@ -67,7 +67,7 @@ $InstallSuccess = $false
 if ($HasBun -and $HasOmp) {
     Write-Info "Bun detected. Installing via 'omp plugin install'..."
     try {
-        & omp plugin install github:ART1KZ/omp-antigravity-pro --force
+        $null | & omp plugin install github:ART1KZ/omp-antigravity-pro --force
         if ($LASTEXITCODE -eq 0) {
             $InstallSuccess = $true
         }
@@ -79,7 +79,7 @@ if ($HasBun -and $HasOmp) {
 if (-not $InstallSuccess -and $HasNpm) {
     Write-Info "Using npm to install directly into '$PluginsDir' (no Bun required)..."
     try {
-        & npm --prefix "$PluginsDir" install github:ART1KZ/omp-antigravity-pro --no-fund --no-audit
+        $null | & npm.cmd --prefix "$PluginsDir" install github:ART1KZ/omp-antigravity-pro --no-fund --no-audit
         if ($LASTEXITCODE -eq 0) {
             $InstallSuccess = $true
         } else {
@@ -104,7 +104,7 @@ if (-not $InstallSuccess -and (-not $HasBun) -and (-not $HasNpm)) {
             if ($HasOmp) {
                 & omp plugin install github:ART1KZ/omp-antigravity-pro --force
             } else {
-                & bun install --cwd "$PluginsDir" github:ART1KZ/omp-antigravity-pro
+                $null | & bun install --cwd "$PluginsDir" github:ART1KZ/omp-antigravity-pro
             }
             if ($LASTEXITCODE -eq 0) {
                 $InstallSuccess = $true
@@ -136,6 +136,8 @@ if ($IsInstalled) {
     Write-Host "  3. Log in or switch accounts anytime:" -ForegroundColor Gray
     Write-Host "     omp /login  (select Google Antigravity)" -ForegroundColor Yellow
     Write-Host ""
+    [Console]::ResetColor()
+    return
 } else {
     Write-Err "Installation could not be completed automatically."
     Write-Host "Try running manually in your terminal:" -ForegroundColor Yellow

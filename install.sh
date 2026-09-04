@@ -43,7 +43,7 @@ command -v omp >/dev/null 2>&1 && HAS_OMP=true
 
 if [ "$HAS_BUN" = true ] && [ "$HAS_OMP" = true ]; then
   info "Bun detected. Installing via 'omp plugin install'..."
-  if omp plugin install github:ART1KZ/omp-antigravity-pro --force; then
+  if omp plugin install github:ART1KZ/omp-antigravity-pro --force </dev/null; then
     INSTALL_SUCCESS=true
   else
     warn "Native OMP installer encountered an issue, falling back to direct npm install..."
@@ -52,7 +52,7 @@ fi
 
 if [ "$INSTALL_SUCCESS" = false ] && [ "$HAS_NPM" = true ]; then
   info "Using npm to install directly into '${PLUGINS_DIR}' (no Bun required)..."
-  if npm --prefix "${PLUGINS_DIR}" install github:ART1KZ/omp-antigravity-pro --no-fund --no-audit; then
+  if npm --prefix "${PLUGINS_DIR}" install github:ART1KZ/omp-antigravity-pro --no-fund --no-audit </dev/null; then
     INSTALL_SUCCESS=true
   else
     warn "npm install failed."
@@ -65,9 +65,9 @@ if [ "$INSTALL_SUCCESS" = false ] && [ "$HAS_BUN" = false ] && [ "$HAS_NPM" = fa
   export PATH="${HOME}/.bun/bin:${PATH}"
   if command -v bun >/dev/null 2>&1; then
     if [ "$HAS_OMP" = true ]; then
-      omp plugin install github:ART1KZ/omp-antigravity-pro --force && INSTALL_SUCCESS=true
+      omp plugin install github:ART1KZ/omp-antigravity-pro --force </dev/null && INSTALL_SUCCESS=true
     else
-      bun install --cwd "${PLUGINS_DIR}" github:ART1KZ/omp-antigravity-pro && INSTALL_SUCCESS=true
+      bun install --cwd "${PLUGINS_DIR}" github:ART1KZ/omp-antigravity-pro </dev/null && INSTALL_SUCCESS=true
     fi
   fi
 fi
