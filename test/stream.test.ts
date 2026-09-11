@@ -8,7 +8,14 @@ import { getBundledModels } from "@oh-my-pi/pi-catalog";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import type { GoogleWireCompat } from "../src/compat";
 import { CUSTOM_API_ID } from "../src/models";
-import { createWireRequest, streamAntigravityPro } from "../src/stream";
+import {
+	createWireRequest,
+	getAccountLockKey,
+	sanitizeAntigravityContext,
+	sanitizeAntigravityPayload,
+	sanitizePromptText,
+	streamAntigravityPro,
+} from "../src/stream";
 
 const context: Context = {
 	systemPrompt: ["Keep this exact prefix."],
@@ -271,5 +278,122 @@ describe("Antigravity wire request", () => {
 			toolChoice: { type: "function" } as unknown as SimpleStreamOptions["toolChoice"],
 		});
 		expect(o3.toolChoice).toBeUndefined();
+	});
+
+	test("sanitizes Cloud Code 429 burst errors to prevent synthetic 30-minute lockout", async () => {
+		const bareModel = model("gemini-3.8-flash");
+		const stream = streamAntigravityPro(bareModel, context, {
+			apiKey: credential("token"),
+			maxRetryDelayMs: 0,
+			fetch: async () => {
+				return new Response(
+					JSON.stringify({
+						error: {
+							code: 429,
+							message: "Resource has been exhausted (e.g. check quota).",
+							status: "RESOURCE_EXHAUSTED",
+						},
+					}),
+					{ status: 429, headers: { "content-type": "application/json" } },
+				);
+			},
+		});
+
+		const result = await stream.result();
+		expect(result.stopReason).toBe("error");
+		expect(result.errorMessage).toContain("[retry-after-ms: 5000]");
+		expect(result.errorMessage).toContain("(burst rate limit)");
+		expect(result.errorMessage).not.toContain("check quota");
+	});
+
+	test("forces production endpoint mode even when caller passes auto", () => {
+		const { wireOptions } = createWireRequest(model("gemini-3.8-flash"), {
+			antigravityEndpointMode: "auto",
+		} as unknown as SimpleStreamOptions);
+
+		expect((wireOptions as GoogleGeminiCliOptions).antigravityEndpointMode).toBe("production");
+	});
+
+	test("sanitizePromptText replaces system-conventions tags", () => {
+		const input = "<system-conventions>\nRule 1\n</system-conventions>";
+		const output = sanitizePromptText(input);
+		expect(output).toBe("<system-rules>\nRule 1\n</system-rules>");
+		expect(output).not.toContain("system-conventions");
+	});
+
+	test("sanitizeAntigravityContext sanitizes both systemPrompt and messages", () => {
+		const ctx: Context = {
+			systemPrompt: ["<system-conventions>rules</system-conventions>"],
+			messages: [
+				{
+					role: "user",
+					content: [{ type: "text", text: "query with <system-conventions>bad</system-conventions>" }],
+					timestamp: 1,
+				},
+				{
+					role: "assistant",
+					content: "plain string <system-conventions>tag</system-conventions>",
+					timestamp: 2,
+				},
+			],
+		};
+		const sanitized = sanitizeAntigravityContext(ctx);
+		expect(sanitized.systemPrompt?.[0]).toBe("<system-rules>rules</system-rules>");
+		const firstContent = sanitized.messages[0].content as Array<{ type: string; text: string }>;
+		expect(firstContent[0].text).toBe("query with <system-rules>bad</system-rules>");
+		expect(sanitized.messages[1].content).toBe("plain string <system-rules>tag</system-rules>");
+	});
+
+	test("sanitizeAntigravityPayload sanitizes systemInstruction and contents", () => {
+		const payload = {
+			project: "test-proj",
+			model: "gemini-3.8-flash",
+			request: {
+				systemInstruction: {
+					parts: [{ text: "<system-conventions>sys</system-conventions>" }],
+				},
+				contents: [
+					{
+						role: "user",
+						parts: [{ text: "<system-conventions>user</system-conventions>" }],
+					},
+				],
+			},
+		};
+		const sanitized = sanitizeAntigravityPayload(payload);
+		expect(sanitized.request.systemInstruction.parts[0].text).toBe("<system-rules>sys</system-rules>");
+		expect(sanitized.request.contents[0].parts[0].text).toBe("<system-rules>user</system-rules>");
+	});
+
+	test("getAccountLockKey extracts email or projectId", () => {
+		expect(getAccountLockKey(JSON.stringify({ email: "user@example.com" }))).toBe("email:user@example.com");
+		expect(getAccountLockKey(JSON.stringify({ projectId: "proj-123" }))).toBe("project:proj-123");
+		expect(getAccountLockKey("plain-key")).toBe("plain-key");
+		expect(getAccountLockKey(undefined)).toBe("default");
+	});
+
+	test("streamAntigravityPro cleans system-conventions before calling fetch", async () => {
+		let receivedBody: any;
+		const stream = streamAntigravityPro(
+			model("gemini-3.8-flash"),
+			{
+				systemPrompt: ["<system-conventions>OMP conventions</system-conventions>"],
+				messages: [{ role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }],
+			},
+			{
+				apiKey: credential("token"),
+				fetch: async (_url, init) => {
+					receivedBody = JSON.parse(init?.body as string);
+					return successfulSse();
+				},
+			},
+		);
+
+		const result = await stream.result();
+		expect(result.stopReason).toBe("stop");
+		expect(receivedBody).toBeDefined();
+		const sysText = receivedBody.request.systemInstruction.parts[0].text;
+		expect(sysText).toContain("<system-rules>");
+		expect(sysText).not.toContain("system-conventions");
 	});
 });

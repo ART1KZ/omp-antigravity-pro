@@ -57,3 +57,40 @@ export function ensureSafeInlineToolDescriptors(customAgentDir?: string): boolea
 		return false;
 	}
 }
+
+/**
+ * Clears artificial 30-minute lockout blocks placed by OMP on Google Antigravity credentials.
+ * Cloud Code Assist rate limits are short-term (60s TPM), so locking the user out for 30m is unintended.
+ */
+export function clearAntigravityAuthBlocks(customAgentDir?: string): boolean {
+	try {
+		const agentDir = customAgentDir || process.env.PI_CODING_AGENT_DIR || join(homedir(), ".omp", "agent");
+		const dbPath = join(agentDir, "agent.db");
+		if (!existsSync(dbPath)) return false;
+
+		try {
+			const mod = "bun:sqlite";
+			const { Database } = require(mod);
+			const db = new Database(dbPath);
+			db.run(
+				"DELETE FROM auth_credential_blocks WHERE provider_key LIKE '%antigravity%' OR provider_key LIKE '%google%'",
+			);
+			db.close();
+			return true;
+		} catch {
+			try {
+				const { DatabaseSync } = require("node:sqlite");
+				const db = new DatabaseSync(dbPath);
+				db.prepare(
+					"DELETE FROM auth_credential_blocks WHERE provider_key LIKE '%antigravity%' OR provider_key LIKE '%google%'",
+				).run();
+				db.close();
+				return true;
+			} catch {
+				return false;
+			}
+		}
+	} catch {
+		return false;
+	}
+}

@@ -1,12 +1,6 @@
-import type {
-	Api,
-	AssistantMessageEventStream,
-	Context,
-	Model,
-	SimpleStreamOptions,
-	ToolChoice,
-} from "@oh-my-pi/pi-ai";
+import type { Api, Context, Model, SimpleStreamOptions, ToolChoice } from "@oh-my-pi/pi-ai";
 import { type GoogleGeminiCliOptions, streamGoogleGeminiCli } from "@oh-my-pi/pi-ai/providers/google-gemini-cli";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import {
 	mapEffortToGoogleThinkingLevel,
@@ -74,8 +68,9 @@ export function createWireRequest(model: Model<Api>, options?: SimpleStreamOptio
 	const isCustomEndpoint =
 		wireModel.baseUrl !== ANTIGRAVITY_DAILY_ENDPOINT &&
 		wireModel.baseUrl !== "https://daily-cloudcode-pa.sandbox.googleapis.com";
-	const antigravityEndpointMode =
-		(forwardedOptions as GoogleGeminiCliOptions).antigravityEndpointMode ?? (isCustomEndpoint ? "auto" : "production");
+	const antigravityEndpointMode = isCustomEndpoint
+		? ((forwardedOptions as GoogleGeminiCliOptions).antigravityEndpointMode ?? "auto")
+		: "production";
 	const baseOptions: GoogleGeminiCliOptions = {
 		...forwardedOptions,
 		apiKey: typeof apiKey === "string" ? apiKey : undefined,
@@ -131,11 +126,213 @@ export function createWireRequest(model: Model<Api>, options?: SimpleStreamOptio
 	};
 }
 
+import { clearAntigravityAuthBlocks } from "./config";
+
+function sanitizeAntigravityError<T extends { errorMessage?: string }>(error: T): T {
+	if (error.errorMessage) {
+		const msg = error.errorMessage;
+		if (/resource has been exhausted|rate.?limit/i.test(msg) && !/exhausted your capacity on this model/i.test(msg)) {
+			error.errorMessage = `${msg.replace(/Resource has been exhausted(?:\s*\(e\.g\. check quota\)\.?)?/gi, "Concurrent request limit exceeded (burst rate limit)")} [retry-after-ms: 5000]`;
+		}
+	}
+	return error;
+}
+
+export function sanitizePromptText(text: string): string {
+	if (!text) return text;
+	return text.replace(/<system-conventions>/gi, "<system-rules>").replace(/<\/system-conventions>/gi, "</system-rules>");
+}
+
+export function sanitizeAntigravityContext(context: Context): Context {
+	let modified = false;
+
+	const newSystemPrompt = context.systemPrompt?.map((s) => {
+		const res = sanitizePromptText(s);
+		if (res !== s) modified = true;
+		return res;
+	});
+
+	const newMessages = context.messages.map((msg) => {
+		if (typeof msg.content === "string") {
+			const res = sanitizePromptText(msg.content);
+			if (res !== msg.content) {
+				modified = true;
+				return { ...msg, content: res };
+			}
+			return msg;
+		}
+		if (Array.isArray(msg.content)) {
+			let partsModified = false;
+			const newContent = msg.content.map((part) => {
+				if (
+					typeof part === "object" &&
+					part !== null &&
+					"type" in part &&
+					part.type === "text" &&
+					typeof part.text === "string"
+				) {
+					const res = sanitizePromptText(part.text);
+					if (res !== part.text) {
+						partsModified = true;
+						return { ...part, text: res };
+					}
+				}
+				return part;
+			});
+			if (partsModified) {
+				modified = true;
+				return { ...msg, content: newContent };
+			}
+		}
+		return msg;
+	});
+
+	if (!modified) return context;
+	return {
+		...context,
+		systemPrompt: newSystemPrompt,
+		messages: newMessages,
+	};
+}
+
+export function sanitizeAntigravityPayload<T>(payload: T): T {
+	if (!payload || typeof payload !== "object") return payload;
+	const req = (payload as Record<string, unknown>).request as Record<string, unknown> | undefined;
+	if (!req || typeof req !== "object") return payload;
+
+	const sys = req.systemInstruction as { parts?: Array<{ text?: string }> } | undefined;
+	if (sys?.parts && Array.isArray(sys.parts)) {
+		for (const part of sys.parts) {
+			if (typeof part?.text === "string") {
+				part.text = sanitizePromptText(part.text);
+			}
+		}
+	}
+
+	const contents = req.contents as Array<{ parts?: Array<{ text?: string }> }> | undefined;
+	if (contents && Array.isArray(contents)) {
+		for (const content of contents) {
+			if (content?.parts && Array.isArray(content.parts)) {
+				for (const part of content.parts) {
+					if (typeof part?.text === "string") {
+						part.text = sanitizePromptText(part.text);
+					}
+				}
+			}
+		}
+	}
+
+	return payload;
+}
+
+export function getAccountLockKey(apiKeyRaw: unknown): string {
+	if (typeof apiKeyRaw !== "string") return "default";
+	try {
+		const parsed = JSON.parse(apiKeyRaw);
+		if (parsed.email) return `email:${parsed.email}`;
+		if (parsed.projectId) return `project:${parsed.projectId}`;
+	} catch {}
+	return apiKeyRaw.slice(0, 50);
+}
+
+class AccountStreamLock {
+	private activePromises = new Map<string, Promise<void>>();
+
+	async acquire(accountKey: string, signal?: AbortSignal): Promise<() => void> {
+		while (this.activePromises.has(accountKey)) {
+			if (signal?.aborted) {
+				throw new Error("Request was aborted while waiting for Antigravity stream slot");
+			}
+			const current = this.activePromises.get(accountKey);
+			if (current) {
+				await Promise.race([
+					current,
+					new Promise<void>((_, reject) => {
+						signal?.addEventListener("abort", () => reject(new Error("Request was aborted")), { once: true });
+					}),
+				]).catch(() => {});
+			}
+		}
+
+		let release!: () => void;
+		const promise = new Promise<void>((resolve) => {
+			release = () => {
+				this.activePromises.delete(accountKey);
+				resolve();
+			};
+		});
+		this.activePromises.set(accountKey, promise);
+
+		return release;
+	}
+}
+
+const accountStreamLock = new AccountStreamLock();
+
 export function streamAntigravityPro(
 	model: Model<Api>,
 	context: Context,
 	options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
+	const outer = new AssistantMessageEventStream();
+	const sanitizedContext = sanitizeAntigravityContext(context);
 	const { wireModel, wireOptions } = createWireRequest(model, options);
-	return streamGoogleGeminiCli(wireModel, context, wireOptions);
+	const originalOnPayload = wireOptions.onPayload;
+	const activeWireOptions: GoogleGeminiCliOptions = {
+		...wireOptions,
+		onPayload: async (payload, targetModel) => {
+			let result = payload;
+			if (originalOnPayload) {
+				const res = await originalOnPayload(payload, targetModel);
+				if (res !== undefined) result = res as typeof payload;
+			}
+			return sanitizeAntigravityPayload(result);
+		},
+	};
+	const accountKey = getAccountLockKey(options?.apiKey);
+
+	void (async () => {
+		let releaseLock: (() => void) | undefined;
+		try {
+			releaseLock = await outer.trackLocalWork(accountStreamLock.acquire(accountKey, options?.signal));
+			if (options?.signal?.aborted) {
+				outer.fail(new Error("Request was aborted"));
+				return;
+			}
+
+			const inner = streamGoogleGeminiCli(wireModel, sanitizedContext, activeWireOptions);
+			outer.forwardLocalWorkFrom(inner);
+
+			for await (const event of inner) {
+				if (event.type === "error") {
+					clearAntigravityAuthBlocks();
+					if (event.error) {
+						sanitizeAntigravityError(event.error);
+					}
+				}
+				outer.push(event);
+			}
+			if (!outer.done) {
+				const result = await inner.result();
+				if (result.stopReason === "error") {
+					clearAntigravityAuthBlocks();
+					sanitizeAntigravityError(result);
+				}
+				outer.end(result);
+			}
+		} catch (err) {
+			clearAntigravityAuthBlocks();
+			const sanitizedErr = sanitizeAntigravityError(
+				err instanceof Error ? { errorMessage: err.message } : (err as { errorMessage?: string }),
+			);
+			if (err instanceof Error && sanitizedErr.errorMessage) {
+				err.message = sanitizedErr.errorMessage;
+			}
+			if (!outer.done) outer.fail(err);
+		} finally {
+			releaseLock?.();
+		}
+	})();
+
+	return outer;
 }

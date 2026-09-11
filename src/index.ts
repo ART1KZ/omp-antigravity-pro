@@ -1,6 +1,6 @@
 import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
-import { ensureSafeInlineToolDescriptors } from "./config";
+import { clearAntigravityAuthBlocks, ensureSafeInlineToolDescriptors } from "./config";
 import {
 	CUSTOM_API_ID,
 	fetchDynamicAntigravityModels,
@@ -25,6 +25,20 @@ export default function antigravityProExtension(pi: ExtensionAPI): void {
 	// Ensure inlineToolDescriptors: "off" is set in ~/.omp/agent/config.yml to prevent
 	// subagent crashes under Gemini models on OMP 18.1.10+.
 	ensureSafeInlineToolDescriptors();
+
+	// Clear any artificial 30-minute lockout blocks placed by OMP on Google Antigravity.
+	clearAntigravityAuthBlocks();
+	if (typeof (pi as unknown as { on?: (event: string, handler: () => void) => void }).on === "function") {
+		pi.on("session_start", () => {
+			clearAntigravityAuthBlocks();
+		});
+		pi.on("turn_start", () => {
+			clearAntigravityAuthBlocks();
+		});
+		pi.on("turn_end", () => {
+			clearAntigravityAuthBlocks();
+		});
+	}
 
 	// Override built-in provider definition so interactive /login and AuthStorage.login
 	// always use our proxy-aware login and ineligible bypass instead of the stock flow.

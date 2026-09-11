@@ -107,13 +107,19 @@ export function resolveWireCompat(model: Model<Api> | { id: string; [key: string
 	return createDefensiveWireCompat(merged as Record<string, unknown>);
 }
 
-export function createDefensiveWireCompat(rawCompat: Record<string, unknown>): GoogleWireCompat {
-	return new Proxy(rawCompat, {
-		get(target, prop, receiver) {
-			if (typeof prop === "string" && !(prop in target)) {
-				return undefined;
-			}
-			return Reflect.get(target, prop, receiver);
+export function createDefensiveWireCompat(rawCompat?: Record<string, unknown> | null): GoogleWireCompat {
+	if (!rawCompat || typeof rawCompat !== "object") {
+		return {} as GoogleWireCompat;
+	}
+	return new Proxy(
+		{ ...rawCompat },
+		{
+			get(target, prop, receiver) {
+				if (typeof prop === "string" && (!target || !(prop in target))) {
+					return undefined;
+				}
+				return Reflect.get(target, prop, receiver);
+			},
 		},
-	}) as GoogleWireCompat;
+	) as GoogleWireCompat;
 }
