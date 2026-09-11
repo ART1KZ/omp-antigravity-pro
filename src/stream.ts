@@ -1,4 +1,4 @@
-import type { Api, Context, Model, SimpleStreamOptions, ToolChoice } from "@oh-my-pi/pi-ai";
+import type { Api, Context, Message, Model, SimpleStreamOptions, ToolChoice } from "@oh-my-pi/pi-ai";
 import { type GoogleGeminiCliOptions, streamGoogleGeminiCli } from "@oh-my-pi/pi-ai/providers/google-gemini-cli";
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
@@ -140,7 +140,9 @@ function sanitizeAntigravityError<T extends { errorMessage?: string }>(error: T)
 
 export function sanitizePromptText(text: string): string {
 	if (!text) return text;
-	return text.replace(/<system-conventions>/gi, "<system-rules>").replace(/<\/system-conventions>/gi, "</system-rules>");
+	return text
+		.replace(/<system-conventions\b[^>]*>/gi, "<system-rules>")
+		.replace(/<\/system-conventions\s*>/gi, "</system-rules>");
 }
 
 export function sanitizeAntigravityContext(context: Context): Context {
@@ -157,7 +159,7 @@ export function sanitizeAntigravityContext(context: Context): Context {
 			const res = sanitizePromptText(msg.content);
 			if (res !== msg.content) {
 				modified = true;
-				return { ...msg, content: res };
+				return { ...msg, content: res } as Message;
 			}
 			return msg;
 		}
@@ -181,7 +183,7 @@ export function sanitizeAntigravityContext(context: Context): Context {
 			});
 			if (partsModified) {
 				modified = true;
-				return { ...msg, content: newContent };
+				return { ...msg, content: newContent } as Message;
 			}
 		}
 		return msg;
@@ -235,40 +237,6 @@ export function getAccountLockKey(apiKeyRaw: unknown): string {
 	return apiKeyRaw.slice(0, 50);
 }
 
-class AccountStreamLock {
-	private activePromises = new Map<string, Promise<void>>();
-
-	async acquire(accountKey: string, signal?: AbortSignal): Promise<() => void> {
-		while (this.activePromises.has(accountKey)) {
-			if (signal?.aborted) {
-				throw new Error("Request was aborted while waiting for Antigravity stream slot");
-			}
-			const current = this.activePromises.get(accountKey);
-			if (current) {
-				await Promise.race([
-					current,
-					new Promise<void>((_, reject) => {
-						signal?.addEventListener("abort", () => reject(new Error("Request was aborted")), { once: true });
-					}),
-				]).catch(() => {});
-			}
-		}
-
-		let release!: () => void;
-		const promise = new Promise<void>((resolve) => {
-			release = () => {
-				this.activePromises.delete(accountKey);
-				resolve();
-			};
-		});
-		this.activePromises.set(accountKey, promise);
-
-		return release;
-	}
-}
-
-const accountStreamLock = new AccountStreamLock();
-
 export function streamAntigravityPro(
 	model: Model<Api>,
 	context: Context,
@@ -289,12 +257,8 @@ export function streamAntigravityPro(
 			return sanitizeAntigravityPayload(result);
 		},
 	};
-	const accountKey = getAccountLockKey(options?.apiKey);
-
 	void (async () => {
-		let releaseLock: (() => void) | undefined;
 		try {
-			releaseLock = await outer.trackLocalWork(accountStreamLock.acquire(accountKey, options?.signal));
 			if (options?.signal?.aborted) {
 				outer.fail(new Error("Request was aborted"));
 				return;
@@ -329,8 +293,6 @@ export function streamAntigravityPro(
 				err.message = sanitizedErr.errorMessage;
 			}
 			if (!outer.done) outer.fail(err);
-		} finally {
-			releaseLock?.();
 		}
 	})();
 

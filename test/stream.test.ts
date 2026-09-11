@@ -319,6 +319,11 @@ describe("Antigravity wire request", () => {
 		const output = sanitizePromptText(input);
 		expect(output).toBe("<system-rules>\nRule 1\n</system-rules>");
 		expect(output).not.toContain("system-conventions");
+
+		const whitespaceInput = "Testing <system-conventions >whitespace</system-conventions >";
+		const whitespaceOutput = sanitizePromptText(whitespaceInput);
+		expect(whitespaceOutput).toBe("Testing <system-rules>whitespace</system-rules>");
+		expect(whitespaceOutput).not.toContain("system-conventions");
 	});
 
 	test("sanitizeAntigravityContext sanitizes both systemPrompt and messages", () => {
@@ -331,8 +336,8 @@ describe("Antigravity wire request", () => {
 					timestamp: 1,
 				},
 				{
-					role: "assistant",
-					content: "plain string <system-conventions>tag</system-conventions>",
+					role: "user",
+					content: "plain string <system-rules>tag</system-rules>",
 					timestamp: 2,
 				},
 			],
@@ -373,7 +378,7 @@ describe("Antigravity wire request", () => {
 	});
 
 	test("streamAntigravityPro cleans system-conventions before calling fetch", async () => {
-		let receivedBody: any;
+		let receivedBody: { request: { systemInstruction: { parts: Array<{ text?: string }> } } } | undefined;
 		const stream = streamAntigravityPro(
 			model("gemini-3.8-flash"),
 			{
@@ -392,8 +397,41 @@ describe("Antigravity wire request", () => {
 		const result = await stream.result();
 		expect(result.stopReason).toBe("stop");
 		expect(receivedBody).toBeDefined();
-		const sysText = receivedBody.request.systemInstruction.parts[0].text;
+		const sysText = receivedBody!.request.systemInstruction.parts[0].text;
 		expect(sysText).toContain("<system-rules>");
 		expect(sysText).not.toContain("system-conventions");
+	});
+
+	test("allows parallel streamAntigravityPro requests concurrently without queuing", async () => {
+		const gate = Promise.withResolvers<void>();
+		let reachedGateCount = 0;
+
+		const barrierFetch = async () => {
+			reachedGateCount++;
+			if (reachedGateCount === 2) {
+				gate.resolve();
+			}
+			await gate.promise;
+			return successfulSse();
+		};
+
+		const ctx: Context = {
+			systemPrompt: ["prompt"],
+			messages: [{ role: "user", content: "hi", timestamp: 1 }],
+		};
+
+		const stream1 = streamAntigravityPro(model("gemini-3.8-flash"), ctx, {
+			apiKey: credential("token"),
+			fetch: barrierFetch,
+		});
+		const stream2 = streamAntigravityPro(model("gemini-3.8-flash"), ctx, {
+			apiKey: credential("token"),
+			fetch: barrierFetch,
+		});
+
+		const [res1, res2] = await Promise.all([stream1.result(), stream2.result()]);
+		expect(res1.stopReason).toBe("stop");
+		expect(res2.stopReason).toBe("stop");
+		expect(reachedGateCount).toBe(2);
 	});
 });
