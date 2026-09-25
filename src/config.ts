@@ -58,9 +58,17 @@ export function ensureSafeInlineToolDescriptors(customAgentDir?: string): boolea
 	}
 }
 
+export const BURST_BLOCK_WINDOW_MS = 10 * 60 * 1000;
+
 /**
- * Clears artificial 30-minute lockout blocks placed by OMP on Google Antigravity credentials.
- * Cloud Code Assist rate limits are short-term (60s TPM), so locking the user out for 30m is unintended.
+ * Clears artificial burst/TPM lockout blocks placed on Google Antigravity credentials
+ * while preserving real quota cooldowns.
+ *
+ * Semantics:
+ * A counter:<group> block longer than the burst window is a real quota cooldown carrying
+ * the reset time (OMP reconciles it against live usage itself) and must survive;
+ * unscoped blocks, and any block shorter than the burst window, are the artificial lockout
+ * this helper exists to remove; already-expired rows go too.
  */
 export function clearAntigravityAuthBlocks(customAgentDir?: string): boolean {
 	try {
@@ -68,22 +76,26 @@ export function clearAntigravityAuthBlocks(customAgentDir?: string): boolean {
 		const dbPath = join(agentDir, "agent.db");
 		if (!existsSync(dbPath)) return false;
 
+		const now = Date.now();
+		const query =
+			"DELETE FROM auth_credential_blocks WHERE (provider_key LIKE '%antigravity%' OR provider_key LIKE '%google%') AND (blocked_until_ms <= :now OR (block_scope NOT LIKE 'counter:%' OR blocked_until_ms - :now <= :burstWindowMs))";
+		const params = {
+			":now": now,
+			":burstWindowMs": BURST_BLOCK_WINDOW_MS,
+		};
+
 		try {
 			const mod = "bun:sqlite";
 			const { Database } = require(mod);
 			const db = new Database(dbPath);
-			db.run(
-				"DELETE FROM auth_credential_blocks WHERE provider_key LIKE '%antigravity%' OR provider_key LIKE '%google%'",
-			);
+			db.run(query, params);
 			db.close();
 			return true;
 		} catch {
 			try {
 				const { DatabaseSync } = require("node:sqlite");
 				const db = new DatabaseSync(dbPath);
-				db.prepare(
-					"DELETE FROM auth_credential_blocks WHERE provider_key LIKE '%antigravity%' OR provider_key LIKE '%google%'",
-				).run();
+				db.prepare(query).run(params);
 				db.close();
 				return true;
 			} catch {
