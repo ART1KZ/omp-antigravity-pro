@@ -101,6 +101,7 @@ describe("published package contract", () => {
 			expect.objectContaining({
 				"@oh-my-pi/pi-ai": expect.any(String),
 				"@oh-my-pi/pi-catalog": expect.any(String),
+				"@oh-my-pi/pi-utils": expect.any(String),
 			}),
 		);
 		expect(packageJson.peerDependencies).toEqual(
